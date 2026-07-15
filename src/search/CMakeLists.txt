@@ -990,3 +990,64 @@ create_fast_downward_library(
         algorithms/sccs
     DEPENDENCY_ONLY
 )
+
+create_fast_downward_library(
+    NAME structural_patterns
+    HELP "Implicit abstractions (structural patterns) heuristic"
+    SOURCES
+        operator_counting/implicit_abstractions_constraints
+        structural_patterns/SP_globals
+        structural_patterns/SP_heuristic
+        structural_patterns/problem
+        structural_patterns/d_operator
+        structural_patterns/solution
+        structural_patterns/sp_causal_graph
+        structural_patterns/mappings/mapping
+        structural_patterns/mappings/var_proj_mapping
+        structural_patterns/mappings/dom_abs_mapping
+        structural_patterns/mappings/op_hash_mapping
+        structural_patterns/mappings/composition_mapping
+        structural_patterns/mappings/op_hash_dom_abs_mapping
+        structural_patterns/mappings/op_hash_var_proj_mapping
+        structural_patterns/abstractions/general_abstraction
+        structural_patterns/abstractions/forks_abstraction
+        structural_patterns/abstractions/iforks_abstraction
+        structural_patterns/abstractions/semiforks_abstraction
+        structural_patterns/abstractions/hourglasses_abstraction
+        structural_patterns/abstractions/one_dep_hourglasses
+        structural_patterns/abstractions/one_dep_binary_hourglasses
+        structural_patterns/abstractions/domain_abstraction
+        structural_patterns/abstractions/var_projection
+        structural_patterns/abstractions/domain
+        structural_patterns/abstractions/k_dependence
+        structural_patterns/abstractions/binary_forks
+        structural_patterns/abstractions/binary_hourglasses
+        structural_patterns/abstractions/binary_semiforks
+        structural_patterns/abstractions/bounded_iforks
+        structural_patterns/solutions/solution_method
+        structural_patterns/solutions/ifork_root_path
+        structural_patterns/solutions/binary_forks_gen
+        structural_patterns/solutions/binary_forks_on
+        structural_patterns/solutions/bounded_iforks_gen
+        structural_patterns/solutions/bounded_iforks_on
+        structural_patterns/solutions/projection_gen
+        structural_patterns/solutions/projection_on
+        structural_patterns/solutions/binary_semiforks_gen
+        structural_patterns/solutions/binary_one_dep_hourglasses_gen
+        structural_patterns/SP_LPConstraint
+        structural_patterns/SP_OSI_solver
+        structural_patterns/LP_heuristic
+        structural_patterns/solutions/LP_binary_fork_gen
+        structural_patterns/solutions/LP_binary_forks
+        structural_patterns/solutions/LP_binary_forks_bounds
+        structural_patterns/solutions/LP_bounded_ifork_gen
+        structural_patterns/solutions/LP_bounded_iforks_off
+        structural_patterns/solutions/LP_projection_gen
+        structural_patterns/solutions/LP_projection_off
+        structural_patterns/solutions/LP_binary_semifork_gen
+    DEPENDS
+        task_properties
+        causal_graph
+        operator_counting
+        lp_solver
+)
