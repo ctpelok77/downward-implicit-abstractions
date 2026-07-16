@@ -34,7 +34,7 @@ StateOptimalHeuristic::~StateOptimalHeuristic() {
 }
 
 void StateOptimalHeuristic::initialize() {
-	if (original_problem->is_goal(eval_state)) {
+	if (sp_is_goal(to_sp_state(eval_state))) {
 		cout << "Cannot create optimal partition for goal state!" << endl;
 		return;
 	}

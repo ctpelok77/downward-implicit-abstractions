@@ -84,3 +84,17 @@ bool OpHashMapping::has_abs_operators(DOperator* o) const {
 	int o_index = original->get_action_index(o);
 	return (beta_func.find(o_index) != beta_func.end());
 }
+
+int OpHashMapping::get_abs_operators_by_index(int op_index,
+                                              std::vector<DOperator*> &abs_ops) {
+	auto it = beta_func.find(op_index);
+	if (it == beta_func.end())
+		return 0;
+	const std::vector<DOperator*> &ops = *(it->second);
+	abs_ops.insert(abs_ops.end(), ops.begin(), ops.end());
+	return static_cast<int>(ops.size());
+}
+
+bool OpHashMapping::has_abs_operators_by_index(int op_index) const {
+	return beta_func.find(op_index) != beta_func.end();
+}

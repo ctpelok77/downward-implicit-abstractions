@@ -1,6 +1,5 @@
 #include "mapping.h"
 
-#include "../../task_proxy.h"
 #include "../problem.h"
 #include "../d_operator.h"
 #include <vector>
@@ -36,4 +35,13 @@ int Mapping::get_abstract_state_value(const SPState &state, int abstract_variabl
 	int original_variable = get_original_var(abstract_variable);
 	int original_value = state[original_variable];
 	return get_abstract_value(original_variable, original_value, abstract_variable);
+}
+
+int Mapping::get_abs_operators_by_index(int op_index,
+                                        std::vector<DOperator*> &abs_ops) {
+	return get_abs_operators(original->get_action_by_index(op_index), abs_ops);
+}
+
+bool Mapping::has_abs_operators_by_index(int op_index) const {
+	return has_abs_operators(original->get_action_by_index(op_index));
 }

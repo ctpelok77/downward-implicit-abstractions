@@ -15,6 +15,7 @@
 
 #include "../plugins/plugin.h"
 #include "../utils/logging.h"
+#include "../task_utils/task_properties.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -69,8 +70,11 @@ SPHeuristic::SPHeuristic(
         bool cache,
         int sfbound)
     : Heuristic(transform, cache_estimates, description, verbosity) {
-    external_problem = false;
-    original_problem = new Problem(transform);
+    // Build goal_vals_ cache from task_proxy (populated by Heuristic base).
+    int nv = task_proxy.get_variables().size();
+    goal_vals_.assign(nv, -1);
+    for (FactProxy gf : task_proxy.get_goals())
+        goal_vals_[gf.get_variable().get_id()] = gf.get_value();
     init_sp_fields(this,
         SIZEOFPATTERNLIMIT, PERCENTAGEOFENSEMBLE, STATISTICS,
         selected_ensemble, use_caching, strategy, singletons_strategy,
@@ -95,9 +99,13 @@ SPHeuristic::SPHeuristic(
         bool cache,
         int sfbound,
         const Problem* prob)
-    : Heuristic(transform, cache_estimates, description, verbosity),
-      original_problem(prob) {
-    external_problem = true;
+    : Heuristic(transform, cache_estimates, description, verbosity) {
+    (void)prob; // original_problem no longer needed; kept for ABI compat
+    // Build goal_vals_ cache from task_proxy (populated by Heuristic base).
+    int nv = task_proxy.get_variables().size();
+    goal_vals_.assign(nv, -1);
+    for (FactProxy gf : task_proxy.get_goals())
+        goal_vals_[gf.get_variable().get_id()] = gf.get_value();
     init_sp_fields(this,
         SIZEOFPATTERNLIMIT, PERCENTAGEOFENSEMBLE, STATISTICS,
         selected_ensemble, use_caching, strategy, singletons_strategy,
@@ -115,13 +123,11 @@ SPHeuristic::~SPHeuristic() {
 		delete get_ensemble_member(ind);
 	}
 	ensemble.clear();
-	if (!external_problem)
-		delete original_problem;
 }
 
 // Convert new-FD State to SPState (internal vector<int>)
 SPState SPHeuristic::to_sp_state(const State &fdstate) const {
-    int n = original_problem->get_vars_number();
+    int n = sp_var_count();
     SPState sp(n);
     for (int v = 0; v < n; ++v)
         sp[v] = fdstate[v].get_value();
@@ -135,7 +141,7 @@ void SPHeuristic::get_ensemble_values(const State &ancestor_state, vector<double
     assert(vals.size() == 0);
     vals.assign(get_ensemble_size(), 0.0);
 
-    if (original_problem->is_goal(sp)) {
+    if (sp_is_goal(sp)) {
         return;
     }
 
@@ -152,7 +158,7 @@ int SPHeuristic::compute_heuristic(const State &ancestor_state) {
     State state = convert_ancestor_state(ancestor_state);
     SPState sp = to_sp_state(state);
 
-    if (original_problem->is_goal(sp)) {
+    if (sp_is_goal(sp)) {
         return 0;
     }
     double total = 0.0;
@@ -261,7 +267,7 @@ void SPHeuristic::create_ensemble_from_file(istream &//in
 }
 
 bool SPHeuristic::is_heuristic_applicable() const {
-	return original_problem->is_nonconditional();
+	return !task_properties::has_conditional_effects(task_proxy);
 }
 
 
@@ -269,136 +275,22 @@ bool SPHeuristic::is_heuristic_applicable() const {
 // There are multiple possible strategies for creating an ensemble.
 // We are focusing on three primary possibilities - (i) creating forks only,
 // (ii) creating inverted forks only, and (iii) creating both forks and inverted forks.
-/* Old version (before 26/5/2010)
-void SPHeuristic::create_binary_forks()
-{
-	// Creating the ensemble consisting of forks only (binary root domains)
-	int var_count = original_problem->get_vars_number();
-	const vector<int> &var_dom = original_problem->get_variable_domains();
-
-	for (int v = 0; v < var_count; v++) {
-		create_binary_fork(v,var_dom[v], true);
-	}
-}
-
-
-void SPHeuristic::create_bounded_inverted_forks() {
-
-	// Creating the ensemble - inverted forks (or singletons) are created for each
-	// goal variable.
-	int var_count = original_problem->get_vars_number();
-	const vector<int> &var_dom = original_problem->get_variable_domains();
-
-	for (int v = 0; v < var_count; v++) {
-		create_bounded_inverted_fork(v,var_dom[v]);
-	}
-}
-
-
-
-void SPHeuristic::create_binary_forks_and_bounded_iforks() {
-
-	// Creating the ensemble
-	int var_count = original_problem->get_vars_number();
-	const vector<int> &var_dom = original_problem->get_variable_domains();
-
-	for (int v = 0; v < var_count; v++) {
-		if (original_problem->has_goal_child(v)) {
-			create_binary_fork(v,var_dom[v], false);
-		}
-		create_bounded_inverted_fork(v,var_dom[v]);
-	}
-}
-
-
-
-
-///////////////////////////////////////////////////////////////
-void SPHeuristic::create_binary_fork(int v, int dom_size, bool create_singletones) {
-	// Each variable is either a singleton or appears in some fork.
-	// By default we use binarization "Leave One Out"
-
-	vector<int> successors = original_problem->get_causal_graph()->get_successors(v);
-//	vector<int> predecessors = original_problem->get_causal_graph()->get_predecessors(v);
-
-	if (original_problem->has_goal_child(v)) {
-		// Create fork (or PDB)
-		if (SIZEOFPATTERNLIMIT > successors.size()) {
-			vector<int> pattern = successors;
-			pattern.insert(pattern.begin(),v);
-			create_pattern(pattern);
-			return;
-		}
-		// Size exceeds the limit
-		create_binary_forkLOO(v, dom_size);
-	}
-	// No fork to create. If this is goal variable, and it doesn't appear
-	// on any other fork (meaning if it has no parents), then singleton is created
-	if (!create_singletones)
-		return;
-
-	if ((original_problem->is_goal_var(v))
-//			&& (dom_size > 2) // Only if performing the domain abstraction
-//			&& (0 == predecessors.size())
-											) {  // The variable is singleton
-		create_singleton(v);
-	}
-}
-
-
-void SPHeuristic::create_bounded_inverted_fork(int v, int dom_size) {
-// We use a ternarization by distance to goal.
-
-//	vector<int> successors = original_problem->get_causal_graph()->get_successors(v);
-	vector<int> predecessors = original_problem->get_causal_graph()->get_predecessors(v);
-
-	if (original_problem->is_goal_var(v)) {
-		if (0 < predecessors.size()) {
-			// Create inverted fork (or PDB)
-			if (SIZEOFPATTERNLIMIT > predecessors.size()) {
-				vector<int> pattern = predecessors;
-				pattern.insert(pattern.begin(),v);
-				create_pattern(pattern);
-			} else {
-				create_bounded_inverted_forkDGV(v, 3, dom_size);
-
-//				if (dom_size > 3) { // Only if performing the domain abstraction
-					create_singleton(v);
-//				}
-			}
-		} else {
-			// This is a goal variable with no parents. Singleton is now created
-			create_singleton(v);
-		}
-	}
-
-}
-
-void SPHeuristic::create_singleton(int var) {
-	vector<int> pattern;
-	pattern.push_back(var);
-	create_pattern(pattern);
-}
-
-
-*/
 
 
 // New version (26/5/2010)
 void SPHeuristic::create_binary_forks()
 {
 	// Creating the ensemble consisting of forks only (binary root domains)
-	int var_count = original_problem->get_vars_number();
-
-	const vector<int> &var_dom = original_problem->get_variable_domains();
+	int var_count = sp_var_count();
+	const causal_graph::CausalGraph &cg = task_proxy.get_causal_graph();
 
 	for (int v = 0; v < var_count; v++) {
-
-		create_binary_fork(v,var_dom[v]);
+		int dom_v = sp_var_domain(v);
+		create_binary_fork(v, dom_v);
 
 		// Singletons
-		vector<int> predecessors = original_problem->get_causal_graph()->get_predecessors(v);
-		if (!original_problem->has_goal_child(v)) {
+		const vector<int> &predecessors = cg.get_predecessors(v);
+		if (!sp_has_goal_child(v)) {
 			if (0 < predecessors.size() && singletons_strategy == NECESSARY)
 				continue;
 			create_singleton(v);
@@ -408,7 +300,7 @@ void SPHeuristic::create_binary_forks()
 				if (singletons_strategy == NECESSARY ||
 						singletons_strategy == BY_DEFINITION)
 					continue;
-				if (var_dom[v] > 2)
+				if (dom_v > 2)
 					create_singleton(v);
 			}
 		}
@@ -420,16 +312,16 @@ void SPHeuristic::create_bounded_inverted_forks() {
 
 	// Creating the ensemble - inverted forks (or singletons) are created for each
 	// goal variable.
-	int var_count = original_problem->get_vars_number();
-
-	const vector<int> &var_dom = original_problem->get_variable_domains();
+	int var_count = sp_var_count();
+	const causal_graph::CausalGraph &cg = task_proxy.get_causal_graph();
 
 	for (int v = 0; v < var_count; v++) {
-		create_bounded_inverted_fork(v,var_dom[v]);
+		int dom_v = sp_var_domain(v);
+		create_bounded_inverted_fork(v, dom_v);
 		// Singletons
-		vector<int> predecessors = original_problem->get_causal_graph()->get_predecessors(v);
+		const vector<int> &predecessors = cg.get_predecessors(v);
 
-		if (!original_problem->has_goal_child(v)) {
+		if (!sp_has_goal_child(v)) {
 			if (0 == predecessors.size()) {
 				// no pred, no goal succ
 				create_singleton(v);
@@ -438,7 +330,7 @@ void SPHeuristic::create_bounded_inverted_forks() {
 				if (singletons_strategy == NECESSARY ||
 						singletons_strategy == BY_DEFINITION)
 					continue;
-				if (var_dom[v] > 2)
+				if (dom_v > 2)
 					create_singleton(v);
 			}
 		} else {
@@ -456,19 +348,18 @@ void SPHeuristic::create_bounded_inverted_forks() {
 void SPHeuristic::create_binary_forks_and_bounded_iforks() {
 
 	// Creating the ensemble
-	int var_count = original_problem->get_vars_number();
-
-	const vector<int> &var_dom = original_problem->get_variable_domains();
+	int var_count = sp_var_count();
+	const causal_graph::CausalGraph &cg = task_proxy.get_causal_graph();
 
 	for (int v = 0; v < var_count; v++) {
-
-		create_binary_fork(v,var_dom[v]);
-		create_bounded_inverted_fork(v,var_dom[v]);
+		int dom_v = sp_var_domain(v);
+		create_binary_fork(v, dom_v);
+		create_bounded_inverted_fork(v, dom_v);
 
 		// Singletons
-		vector<int> predecessors = original_problem->get_causal_graph()->get_predecessors(v);
+		const vector<int> &predecessors = cg.get_predecessors(v);
 
-		if (!original_problem->has_goal_child(v)) {
+		if (!sp_has_goal_child(v)) {
 			if (0 < predecessors.size() && singletons_strategy == NECESSARY)
 				continue;
 			create_singleton(v);
@@ -480,121 +371,264 @@ void SPHeuristic::create_binary_forks_and_bounded_iforks() {
 				create_singleton(v);
 			}
 		}
-
 	}
 }
 
+
+// ---------------------------------------------------------------------------
+// DTG / CG helpers that replace original_problem-> calls
+// ---------------------------------------------------------------------------
+
+// Collect all distinct post-values that can be reached from (var, val) via a
+// single operator whose effect on var has pre == val (or pre == -1, meaning
+// "any value").
+void SPHeuristic::sp_dtg_successors(int var, int val,
+                                    std::vector<int> &succ) const {
+    std::set<int> seen;
+    for (OperatorProxy op : task_proxy.get_operators()) {
+        int post = -1;
+        int pre  = -2;  // sentinel: "operator has no effect on var"
+        for (EffectProxy eff : op.get_effects()) {
+            if (eff.get_fact().get_variable().get_id() == var) {
+                post = eff.get_fact().get_value();
+                pre  = -1; // default: no precondition on this var
+                for (FactProxy pre_fact : op.get_preconditions()) {
+                    if (pre_fact.get_variable().get_id() == var) {
+                        pre = pre_fact.get_value();
+                        break;
+                    }
+                }
+                break;
+            }
+        }
+        if (pre == -2) continue;       // no effect on var
+        if (pre != -1 && pre != val) continue; // pre doesn't match
+        if (seen.insert(post).second)
+            succ.push_back(post);
+    }
+}
+
+// BFS backward on the DTG for variable var, collecting distances to goal value.
+// vals[k] = set of values at distance k from the goal.
+// dist_to_goal[value] = BFS distance (−1 if unreachable).
+void SPHeuristic::sp_domain_values_by_distance_to_goal(
+        int var,
+        std::vector<std::vector<int>> &vals,
+        std::vector<int> &dist_to_goal) const {
+    int g_v = goal_vals_[var];
+    int dom_size = sp_var_domain(var);
+
+    // Build predecessor map from DTG successors
+    std::vector<std::vector<int>> pred(dom_size);
+    for (int i = 0; i < dom_size; ++i) {
+        std::vector<int> s;
+        sp_dtg_successors(var, i, s);
+        for (int j : s)
+            pred[j].push_back(i);
+    }
+
+    dist_to_goal.assign(dom_size, -1);
+    dist_to_goal[g_v] = 0;
+    std::vector<int> first = {g_v};
+    std::vector<int> open = pred[g_v];
+    vals.push_back(first);
+    vals.push_back(open);
+
+    int counted = 1;
+    for (int v : open) {
+        if (dist_to_goal[v] == -1) {
+            dist_to_goal[v] = 1;
+            ++counted;
+        }
+    }
+
+    while (counted < dom_size && !open.empty()) {
+        std::vector<int> next;
+        for (int u : open) {
+            for (int p : pred[u]) {
+                if (dist_to_goal[p] == -1) {
+                    dist_to_goal[p] = dist_to_goal[u] + 1;
+                    next.push_back(p);
+                    ++counted;
+                }
+            }
+        }
+        vals.push_back(next);
+        open = next;
+    }
+}
+
+// Enumerate all subsets of CG neighbours of center of size <= bound.
+void SPHeuristic::sp_compute_hat_variants(int center, std::set<int> &curr,
+                                          int bound,
+                                          std::set<std::set<int>> &result) const {
+    if (!curr.empty() && !result.insert(curr).second)
+        return;
+    if ((int)curr.size() == bound)
+        return;
+
+    const causal_graph::CausalGraph &cg = task_proxy.get_causal_graph();
+    std::set<int> to_add;
+    for (int p : cg.get_predecessors(center)) to_add.insert(p);
+    for (int s : cg.get_successors(center))   to_add.insert(s);
+    for (int u : curr) {
+        for (int p : cg.get_predecessors(u)) to_add.insert(p);
+        for (int s : cg.get_successors(u))   to_add.insert(s);
+    }
+    for (int u : curr) to_add.erase(u);
+    to_add.erase(center);
+
+    for (int u : to_add) {
+        curr.insert(u);
+        sp_compute_hat_variants(center, curr, bound, result);
+        curr.erase(u);
+    }
+}
+
+bool SPHeuristic::sp_hat_has_leaf(int center, const std::set<int> &hat) const {
+    const causal_graph::CausalGraph &cg = task_proxy.get_causal_graph();
+    for (int var : hat) {
+        bool arc_to_center = false;
+        for (int s : cg.get_successors(var))
+            if (s == center) { arc_to_center = true; break; }
+        if (arc_to_center) continue;
+
+        bool neigh = false;
+        for (int p : cg.get_predecessors(var))
+            if (hat.count(p)) { neigh = true; break; }
+        if (!neigh)
+            for (int s : cg.get_successors(var))
+                if (hat.count(s)) { neigh = true; break; }
+        if (!neigh) return true;
+    }
+    return false;
+}
+
+bool SPHeuristic::sp_hat_connected_to_goals(int center,
+                                             const std::set<int> &hat) const {
+    const causal_graph::CausalGraph &cg = task_proxy.get_causal_graph();
+    int nv = sp_var_count();
+    std::vector<bool> in_hat(nv, false);
+    std::vector<bool> visited(nv, false);
+    for (int u : hat) in_hat[u] = true;
+
+    std::set<int> connected, iterating;
+    connected.insert(center);
+    iterating.insert(center);
+    visited[center] = true;
+    for (int u : hat) {
+        if (sp_is_goal_var(u)) {
+            connected.insert(u);
+            iterating.insert(u);
+            visited[u] = true;
+        }
+    }
+
+    while (connected.size() <= hat.size()) {
+        std::set<int> new_connected;
+        for (int u : iterating) {
+            for (int p : cg.get_predecessors(u)) {
+                if (in_hat[p] && !visited[p]) {
+                    visited[p] = true;
+                    new_connected.insert(p);
+                }
+            }
+        }
+        if (new_connected.empty()) break;
+        iterating = new_connected;
+        connected.insert(new_connected.begin(), new_connected.end());
+    }
+    return connected.size() > hat.size();
+}
+
+void SPHeuristic::sp_compute_connected_variables_bounded_sets(
+        int v, int bound, std::vector<std::vector<int>> &hats) const {
+    std::set<std::set<int>> possible;
+    std::set<int> curr;
+    sp_compute_hat_variants(v, curr, bound, possible);
+
+    std::set<std::set<int>> valid;
+    for (const auto &hat : possible) {
+        if (sp_hat_has_leaf(v, hat)) continue;
+        if (sp_hat_connected_to_goals(v, hat))
+            valid.insert(hat);
+    }
+
+    // Remove dominated sets (subsets of larger valid sets)
+    for (const auto &hat : valid) {
+        bool is_subset = false;
+        for (const auto &other : valid) {
+            if (&hat == &other) continue;
+            // Check if hat ⊆ other
+            bool subset = true;
+            for (int u : hat)
+                if (!other.count(u)) { subset = false; break; }
+            if (subset && other.size() > hat.size()) { is_subset = true; break; }
+        }
+        if (!is_subset) {
+            hats.push_back(std::vector<int>(hat.begin(), hat.end()));
+        }
+    }
+}
+
+
 void SPHeuristic::create_binary_semiforks() {
-	original_problem->dump_CG_dot("cg.dot");
 	// Creating the ensemble consisting of semiforks only (binary root domains)
-	int var_count = original_problem->get_vars_number();
-	const vector<int> &var_dom = original_problem->get_variable_domains();
+	int var_count = sp_var_count();
 	cout << "Creating an ensemble consisting of semiforks" << endl;
 	for (int v = 0; v < var_count; v++) {
+		int dom_v = sp_var_domain(v);
 		// Getting the hats from the problem given the bound and initialize the semifork for each hat.
 		vector<vector<int> > hats;
-		original_problem->compute_connected_variables_bounded_sets(v, semifork_hat_bound_size, hats);
-//		/*
+		sp_compute_connected_variables_bounded_sets(v, semifork_hat_bound_size, hats);
 		for (size_t i=0; i < hats.size(); ++i) {
-
-			create_binary_semifork(v, hats[i], var_dom[v]);
+			create_binary_semifork(v, hats[i], dom_v);
 		}
-//		*/
 		// Creating fork for the semiforks with no hat
 		if (hats.size() == 0) {
-			create_binary_fork(v, var_dom[v]);
+			create_binary_fork(v, dom_v);
 		}
-//		else {
-//			create_binary_semifork(v, hats[hats.size() - 1], var_dom[v]);
-//		}
-
-		/* Singleton part is temporary disabled. Need to check if fits semiforks anyway
-
-		// Singletons
-		const vector<int>& predecessors = original_problem->get_causal_graph()->get_predecessors(v);
-		if (!original_problem->has_goal_child(v)) {
-			if (0 < predecessors.size() && singletons_strategy == NECESSARY)
-				continue;
-			create_singleton(v);
-		} else {
-			if (0 == predecessors.size()) {
-				// no pred, goal succ
-				if (singletons_strategy == NECESSARY ||
-						singletons_strategy == BY_DEFINITION)
-					continue;
-				if (var_dom[v] > 2)
-					create_singleton(v);
-			}
-		}
-		*/
 	}
 }
 
 
 void SPHeuristic::create_binary_hourglasses() {
-	original_problem->dump_CG_dot("cg.dot");
 	// Creating the ensemble consisting of hourglasses only (binary root domains)
-	int var_count = original_problem->get_vars_number();
-	const vector<int> &var_dom = original_problem->get_variable_domains();
+	int var_count = sp_var_count();
+	const causal_graph::CausalGraph &cg = task_proxy.get_causal_graph();
 	cout << "Creating an ensemble consisting of hourglasses" << endl;
 	for (int v = 0; v < var_count; v++) {
-		int dom_v = var_dom[v];
-		const vector<int>& predecessors = original_problem->get_causal_graph()->get_predecessors(v);
-		const vector<int>& successors = original_problem->get_causal_graph()->get_successors(v);
+		int dom_v = sp_var_domain(v);
+		const vector<int> &predecessors = cg.get_predecessors(v);
+		const vector<int> &successors = cg.get_successors(v);
 		set<int> parents;
 		vector<int> leafs;
 		parents.insert(predecessors.begin(), predecessors.end());
 		for (size_t i=0; i < successors.size(); ++i) {
-			if (original_problem->is_goal_var(successors[i])) {
+			if (sp_is_goal_var(successors[i])) {
 				parents.erase(successors[i]);
 				leafs.push_back(successors[i]);
 			}
 		}
 		if (parents.size() == 0) {
 			continue;
-			cout << "Variable " << v << " has no parents, attempting at creating fork" << endl;
-			create_binary_fork(v, dom_v);
-			continue;
 		}
 		if (leafs.size() == 0) {
-			continue;
-			cout << "Variable " << v << " has no goal children, attempting at creating inverted fork" << endl;
-			create_bounded_inverted_fork(v, dom_v);
 			continue;
 		}
 		vector<int> vec_par;
 		vec_par.insert(vec_par.begin(), parents.begin(), parents.end());
 		create_binary_hourglass(v, vec_par, dom_v);
-
-		/* Singleton part is temporary disabled. Need to check if fits semiforks anyway
-
-		// Singletons
-		const vector<int>& predecessors = original_problem->get_causal_graph()->get_predecessors(v);
-		if (!original_problem->has_goal_child(v)) {
-			if (0 < predecessors.size() && singletons_strategy == NECESSARY)
-				continue;
-			create_singleton(v);
-		} else {
-			if (0 == predecessors.size()) {
-				// no pred, goal succ
-				if (singletons_strategy == NECESSARY ||
-						singletons_strategy == BY_DEFINITION)
-					continue;
-				if (var_dom[v] > 2)
-					create_singleton(v);
-			}
-		}
-		*/
 	}
 }
 
 ///////////////////////////////////////////////////////////////
 void SPHeuristic::create_binary_fork(int v, int dom_size) {
 	// By default we use binarization "Leave One Out"
-	if (!original_problem->has_goal_child(v))
+	if (!sp_has_goal_child(v))
 		return;
 
-	const vector<int>& successors = original_problem->get_causal_graph()->get_successors(v);
+	const vector<int> &successors = task_proxy.get_causal_graph().get_successors(v);
 
 	// Create fork (or PDB)
 	if (SIZEOFPATTERNLIMIT > (int)successors.size()) {
@@ -610,10 +644,10 @@ void SPHeuristic::create_binary_fork(int v, int dom_size) {
 
 void SPHeuristic::create_bounded_inverted_fork(int v, int dom_size) {
 // We use a ternarization by distance to goal.
-	if (!original_problem->is_goal_var(v))
+	if (!sp_is_goal_var(v))
 		return;
 
-	const vector<int>& predecessors = original_problem->get_causal_graph()->get_predecessors(v);
+	const vector<int> &predecessors = task_proxy.get_causal_graph().get_predecessors(v);
 
 	if (0 == predecessors.size())
 		return;
@@ -626,15 +660,12 @@ void SPHeuristic::create_bounded_inverted_fork(int v, int dom_size) {
 	} else {
 		create_bounded_inverted_forkDGV(v, IFORKDOMBOUND, dom_size);
 		return;
-//		int var_num = original_problem->get_var_actions(v).size();
-		// Bounding by |A_v|^{IFORKDOMBOUND - 1}
-//		create_bounded_inverted_fork_check_paths(v, IFORKDOMBOUND, pow(var_num, IFORKDOMBOUND-1), dom_size);
 		create_bounded_inverted_fork_check_paths(v, IFORKDOMBOUND, MAX_NUM_PATHS, dom_size);
 	}
 }
 
 void SPHeuristic::create_singleton(int var) {
-	if (!original_problem->is_goal_var(var))
+	if (!sp_is_goal_var(var))
 		return;
 
 	vector<int> pattern;
@@ -644,20 +675,18 @@ void SPHeuristic::create_singleton(int var) {
 
 void SPHeuristic::create_binary_semifork(int v, const vector<int>& hat, int dom_size) {
 	// By default we use binarization "Leave One Out"
-	const vector<int>& successors = original_problem->get_causal_graph()->get_successors(v);
+	const vector<int> &successors = task_proxy.get_causal_graph().get_successors(v);
 
 	set<int> total_vars;
 	for (size_t i=0; i < successors.size(); ++i) {
-		if (original_problem->is_goal_var(successors[i]))
+		if (sp_is_goal_var(successors[i]))
 			total_vars.insert(successors[i]);
 	}
 	total_vars.insert(hat.begin(),hat.end());
 
 	// Create semifork (or PDB)
-//	if (SIZEOFPATTERNLIMIT > total_vars.size() || total_vars.size() == hat.size()) {
 	if (SIZEOFPATTERNLIMIT > (int)total_vars.size()) {
-			cout << "Under the bound - creating pattern" << endl;
-
+		cout << "Under the bound - creating pattern" << endl;
 		vector<int> pattern;
 		pattern.push_back(v);
 		pattern.insert(pattern.begin()+1,total_vars.begin(),total_vars.end());
@@ -665,7 +694,6 @@ void SPHeuristic::create_binary_semifork(int v, const vector<int>& hat, int dom_
 		return;
 	}
 	if (total_vars.size() == hat.size()) {
-//		cout << "No goal children - exiting" << endl;
 		return;
 	}
 
@@ -675,20 +703,18 @@ void SPHeuristic::create_binary_semifork(int v, const vector<int>& hat, int dom_
 
 void SPHeuristic::create_binary_hourglass(int v, const vector<int>& parents, int dom_size) {
 	// By default we use binarization "Leave One Out"
-	const vector<int>& successors = original_problem->get_causal_graph()->get_successors(v);
+	const vector<int> &successors = task_proxy.get_causal_graph().get_successors(v);
 
 	set<int> total_vars;
 	for (size_t i=0; i < successors.size(); ++i) {
-		if (original_problem->is_goal_var(successors[i]))
+		if (sp_is_goal_var(successors[i]))
 			total_vars.insert(successors[i]);
 	}
 	total_vars.insert(parents.begin(),parents.end());
 
 	// Create hourglass (or PDB)
-//	if (SIZEOFPATTERNLIMIT > total_vars.size() || total_vars.size() == hat.size()) {
 	if (SIZEOFPATTERNLIMIT > (int)total_vars.size()) {
-			cout << "Under the bound - creating pattern" << endl;
-
+		cout << "Under the bound - creating pattern" << endl;
 		vector<int> pattern;
 		pattern.push_back(v);
 		pattern.insert(pattern.begin()+1,total_vars.begin(),total_vars.end());
@@ -709,7 +735,7 @@ void SPHeuristic::create_binary_forkLOO(int v, int dom_size) {
 
 	// Creating Fork first
 	ForksAbstraction* f = new ForksAbstraction(v);
-	f->create(original_problem);
+	static_cast<GeneralAbstraction*>(f)->create(task);
 
 	cout << " over " << f->get_mapping()->get_abstract()->get_vars_number() << " variables." << endl;
 
@@ -740,7 +766,7 @@ void SPHeuristic::create_bounded_inverted_forkDGV(int v, int bound, int dom_size
 
 	// Creating Inverted Fork first
 	IforksAbstraction* ifork = new IforksAbstraction(v);
-	ifork->create(original_problem);
+	ifork->create(task);
 
 	cout << " over " << ifork->get_mapping()->get_abstract()->get_vars_number() << " variables." << endl;
 	cout << "Var: " << v << ", domain: " << dom_size << ", bound: " << bound << endl;
@@ -755,7 +781,7 @@ void SPHeuristic::create_bounded_inverted_forkDGV(int v, int bound, int dom_size
 	// If the original domain is bigger than a given bound.
 	vector<vector<int> > dom_vals;
 	vector<int> distances;
-	original_problem->get_domain_values_by_distance_to_goal(v,dom_vals,distances);
+	sp_domain_values_by_distance_to_goal(v, dom_vals, distances);
 
 //	int has_dead_end = 0;
 	int lb = 0, ub = 0;
@@ -787,7 +813,7 @@ void SPHeuristic::create_inverted_fork_all_paths(int v, int dom_size) {
 
 	// Creating Inverted Fork first
 	IforksAbstraction* ifork = new IforksAbstraction(v);
-	ifork->create(original_problem);
+	ifork->create(task);
 
 	Problem* abs = ifork->get_mapping()->get_abstract();
 
@@ -809,7 +835,7 @@ void SPHeuristic::create_bounded_inverted_fork_check_paths(int v, int bound, int
 
 	// Creating Inverted Fork first
 	IforksAbstraction* ifork = new IforksAbstraction(v);
-	ifork->create(original_problem);
+	ifork->create(task);
 
 	Problem* abs = ifork->get_mapping()->get_abstract();
 
@@ -840,7 +866,7 @@ void SPHeuristic::create_bounded_inverted_fork_check_paths(int v, int bound, int
 	// If the original domain is bigger than a given bound.
 	vector<vector<int> > dom_vals;
 	vector<int> distances;
-	original_problem->get_domain_values_by_distance_to_goal(v,dom_vals,distances);
+	sp_domain_values_by_distance_to_goal(v, dom_vals, distances);
 
 	int lb = 0, ub = 0;
 	for (size_t i=0; i < distances.size(); ++i) {
@@ -881,7 +907,7 @@ void SPHeuristic::create_binary_semiforkLOO(int v, const vector<int>& hat, int d
 
 	// Creating SemiFork first
 	SemiForksAbstraction* sf = new SemiForksAbstraction(v,hat);
-	sf->create(original_problem);
+	static_cast<GeneralAbstraction*>(sf)->create(task);
 
 	cout << " over the total of " << sf->get_mapping()->get_abstract()->get_vars_number() << " variables." << endl;
 
@@ -914,7 +940,7 @@ void SPHeuristic::create_binary_hourglassLOO(int v, const vector<int>& parents, 
 
 	// Creating Hourglass first
 	HourglassesAbstraction* hg = new HourglassesAbstraction(v, parents);
-	hg->create(original_problem);
+	hg->create(task);
 
 	cout << " over the total of " << hg->get_mapping()->get_abstract()->get_vars_number() << " variables." << endl;
 
@@ -961,10 +987,10 @@ void SPHeuristic::apply_uniform_representatives_cost() {
 
 	// Setting the cost of the representatives in each pattern
 	// to be uniformly partitioned between ALL the representatives.
-	const vector<DOperator*> &ops = original_problem->get_operators();
-
-	int num_ops = ops.size();
+	OperatorsProxy task_ops = task_proxy.get_operators();
+	int num_ops = task_ops.size();
 	for (int a_i = 0; a_i < num_ops; a_i++) {
+		double op_cost = task_ops[a_i].get_cost();
 
 		// Counting the number of actions
 		vector<DOperator*> abs_ops;
@@ -973,13 +999,12 @@ void SPHeuristic::apply_uniform_representatives_cost() {
 			if (!member->is_active())
 				continue;
 
-			member->get_mapping()->get_abs_operators(ops[a_i],abs_ops);
+			member->get_mapping()->get_abs_operators_by_index(a_i, abs_ops);
 		}
 		int num_actions = abs_ops.size();
 		if (num_actions > 0) {
-			double abs_cost = ops[a_i]->get_double_cost() / num_actions;
-			// Update costs
-			for (int i=0;i<num_actions;i++) {
+			double abs_cost = op_cost / num_actions;
+			for (int i = 0; i < num_actions; i++) {
 				abs_ops[i]->set_double_cost(abs_cost);
 			}
 		}
@@ -990,25 +1015,26 @@ void SPHeuristic::apply_uniform_ensemble_representatives_cost() {
 
 	// Setting the cost of the representatives in each pattern
 	// to be uniformly partitioned between ensembles, and then between ALL the representatives.
-	const vector<DOperator*> &ops = original_problem->get_operators();
-
-	int num_ops = ops.size();
+	OperatorsProxy task_ops = task_proxy.get_operators();
+	int num_ops = task_ops.size();
 	int num_ensemble_members = get_num_active_members();
 	for (int a_i = 0; a_i < num_ops; a_i++) {
+		double op_cost = task_ops[a_i].get_cost();
 		for (int ind = 0; ind < get_ensemble_size(); ind++){
 			SolutionMethod* member = get_ensemble_member(ind);
 			if (!member->is_active())
 				continue;
 
 			vector<DOperator*> abs_ops;
-			member->get_mapping()->get_abs_operators(ops[a_i],abs_ops);
+			member->get_mapping()->get_abs_operators_by_index(a_i, abs_ops);
 			int num_abs_ops = abs_ops.size();
-			double abs_cost = ops[a_i]->get_double_cost() / (num_ensemble_members * num_abs_ops);
+			if (num_abs_ops == 0)
+				continue;
+			double abs_cost = op_cost / (num_ensemble_members * num_abs_ops);
 
-			for (int i=0;i<num_abs_ops;i++) {
+			for (int i = 0; i < num_abs_ops; i++) {
 				abs_ops[i]->set_double_cost(abs_cost);
 			}
-
 		}
 	}
 }
@@ -1017,38 +1043,32 @@ void SPHeuristic::apply_weighted_uniform_representatives_cost() {
 
 	// Setting the cost of the representatives in each pattern
 	// to be partitioned between ALL the representatives according to the predefined weights
-	const vector<DOperator*> &ops = original_problem->get_operators();
-
-	int num_ops = ops.size();
+	OperatorsProxy task_ops = task_proxy.get_operators();
+	int num_ops = task_ops.size();
 	for (int a_i = 0; a_i < num_ops; a_i++) {
+		double op_cost = task_ops[a_i].get_cost();
 		int num_abs_ops = 0;
 		double total_weight = 0.0;
 		// Counting the number of actions
-		vector<vector<DOperator*> > abs_ops;
+		vector<vector<DOperator*>> abs_ops;
 		int ensemble_size = get_ensemble_size();
 		for (int ind = 0; ind < ensemble_size; ind++){
 			SolutionMethod* member = get_ensemble_member(ind);
 			vector<DOperator*> tmp_ops;
 			if (member->is_active()) {
-				member->get_mapping()->get_abs_operators(ops[a_i],tmp_ops);
+				member->get_mapping()->get_abs_operators_by_index(a_i, tmp_ops);
 				num_abs_ops += tmp_ops.size();
 				if (tmp_ops.size() > 0) {
 					total_weight += pattern_weights[ind];
-//					cout << ind << ":" << tmp_ops.size() << ":" << pattern_weights[ind] << "  ";
 				}
 			}
 			abs_ops.push_back(tmp_ops);
 		}
 
-//		cout << endl << "Num abs ops: " << num_abs_ops << endl;
 		if (num_abs_ops == 0)
 			continue;
 
-		double abs_cost = ops[a_i]->get_double_cost() / total_weight;
-		cout << "===============================================" << endl;
-		ops[a_i]->dump();
-		cout << "-----------------------------------------------" << endl;
-//		cout<< "Abs cost: " << abs_cost << endl;
+		double abs_cost = op_cost / total_weight;
 		for (int ind = 0; ind < ensemble_size; ind++){
 			SolutionMethod* member = get_ensemble_member(ind);
 			if (!member->is_active())
@@ -1058,11 +1078,9 @@ void SPHeuristic::apply_weighted_uniform_representatives_cost() {
 				continue;
 
 			// Going over ensemble members, setting actions cost
-			double weighted_abs_cost = (abs_cost * pattern_weights[ind])/abs_ops[ind].size();
-//			cout<< "Weighted abs cost: " << weighted_abs_cost << endl;
-			for (size_t i=0; i < abs_ops[ind].size(); ++i) {
+			double weighted_abs_cost = (abs_cost * pattern_weights[ind]) / abs_ops[ind].size();
+			for (size_t i = 0; i < abs_ops[ind].size(); ++i) {
 				abs_ops[ind][i]->set_double_cost(weighted_abs_cost);
-				abs_ops[ind][i]->dump();
 			}
 		}
 	}
@@ -1074,10 +1092,10 @@ void SPHeuristic::apply_weighted_uniform_representatives_cost() {
 
 void SPHeuristic::apply_full_representatives_cost() {
 
-	const vector<DOperator*> &ops = original_problem->get_operators();
-
-	int num_ops = ops.size();
+	OperatorsProxy task_ops = task_proxy.get_operators();
+	int num_ops = task_ops.size();
 	for (int a_i = 0; a_i < num_ops; a_i++) {
+		double op_cost = task_ops[a_i].get_cost();
 
 		for (int ind = 0; ind < get_ensemble_size(); ind++){
 			SolutionMethod* member = get_ensemble_member(ind);
@@ -1085,12 +1103,11 @@ void SPHeuristic::apply_full_representatives_cost() {
 				continue;
 
 			vector<DOperator*> abs_ops;
-			member->get_mapping()->get_abs_operators(ops[a_i],abs_ops);
+			member->get_mapping()->get_abs_operators_by_index(a_i, abs_ops);
 			int num_representatives = abs_ops.size();
 			if (num_representatives > 0) {
-				double abs_cost = ops[a_i]->get_double_cost() / num_representatives;
-				// Update costs
-				for (int i=0;i<num_representatives;i++) {
+				double abs_cost = op_cost / num_representatives;
+				for (int i = 0; i < num_representatives; i++) {
 					abs_ops[i]->set_double_cost(abs_cost);
 				}
 			}
@@ -1103,22 +1120,21 @@ void SPHeuristic::apply_full_representatives_cost() {
 
 void SPHeuristic::print_abstract_operators() {
 
-	const vector<DOperator*> &ops = original_problem->get_operators();
-
-	int num_ops = ops.size();
+	OperatorsProxy task_ops = task_proxy.get_operators();
+	int num_ops = task_ops.size();
 	cout << "Printing operators and their abstract representatives" << endl;
 	for (int a_i = 0; a_i < num_ops; a_i++) {
-		ops[a_i]->dump();
+		cout << task_ops[a_i].get_name() << " cost=" << task_ops[a_i].get_cost() << endl;
 		for (int ind = 0; ind < get_ensemble_size(); ind++){
 			SolutionMethod* member = get_ensemble_member(ind);
 			if (!member->is_active())
 				continue;
 
 			vector<DOperator*> abs_ops;
-			member->get_mapping()->get_abs_operators(ops[a_i],abs_ops);
+			member->get_mapping()->get_abs_operators_by_index(a_i, abs_ops);
 
 			int num_actions = abs_ops.size();
-			for (int i=0;i<num_actions;i++) {
+			for (int i = 0; i < num_actions; i++) {
 				cout << member->get_abstraction_index() <<
 				", " << member->w_var(abs_ops[i]) << " (" <<
 				member->get_abstraction_index() + member->w_var(abs_ops[i])
@@ -1181,16 +1197,13 @@ Domain* SPHeuristic::create_id_domain(int var, int dom_size) const {
 
 
 void SPHeuristic::initialize() {
-	if (STATISTICS >= 1) {
-		original_problem->dump();
-	}
 	if (0 == get_ensemble_size()) {
 //        cout << "Creating ensemble " << std::endl;
 
 		create_ensemble();
 //		cout << "Done Creating ensemble " << std::endl;
 		// print statistics
-		cout << "SAS variables :: " << original_problem->get_vars_number() << endl;
+		cout << "SAS variables :: " << sp_var_count() << endl;
 		cout << "Ensemble size :: " << get_ensemble_size() << endl;
 	}
 	if (0 == get_ensemble_size()) {
@@ -1338,29 +1351,25 @@ void SPHeuristic::set_smart_representatives_cost() {
 
 	// The costs are uniformly partitioned between the patterns, inside each pattern first the whole cost
 	// is given to the root, then the minimum is found and the rest is partitioned uniformly between others.
-	const vector<DOperator*> &ops = original_problem->get_operators();
-
-	int num_ops = ops.size();
-	vector<double> pattern_costs;
-	pattern_costs.assign(num_ops,0.0);
+	OperatorsProxy task_ops = task_proxy.get_operators();
+	int num_ops = task_ops.size();
+	vector<double> pattern_costs(num_ops, 0.0);
 	for (int a_i = 0; a_i < num_ops; a_i++) {
+		double op_cost = task_ops[a_i].get_cost();
 		// Counting the number of actions
 		vector<DOperator*> abs_ops;
-		int num_ptrns=0;
+		int num_ptrns = 0;
 		for (int ind = 0; ind < get_ensemble_size(); ind++){
 			SolutionMethod* member = get_ensemble_member(ind);
 			if (!member->is_active())
 				continue;
 
-			int num_rep = member->get_mapping()->get_abs_operators(ops[a_i],abs_ops);
+			int num_rep = member->get_mapping()->get_abs_operators_by_index(a_i, abs_ops);
 			if (num_rep > 0)
 				num_ptrns++;
 		}
 		if (num_ptrns > 0) {
-			double abs_cost = ops[a_i]->get_double_cost() / num_ptrns;
-			int act_ind = ops[a_i]->get_index();
-			assert(act_ind<num_ops);
-			pattern_costs[act_ind] = abs_cost;
+			pattern_costs[a_i] = op_cost / num_ptrns;
 		}
 	}
 
@@ -1382,62 +1391,48 @@ void SPHeuristic::set_smart_representatives_cost() {
 				int act_ind = map->get_orig_operator(A_r[a])->get_index();
 				double c = pattern_costs[act_ind];
 				if (0 == A_r[a]->get_post_val(0)) {
-					min0 = min(min0,c);
+					min0 = min(min0, c);
 				} else {
-					min1 = min(min1,c);
+					min1 = min(min1, c);
 				}
 			}
 			// Set the costs of the actions in this pattern
 			for (int a_i = 0; a_i < num_ops; a_i++) {
-				// Counting the number of actions
 				vector<DOperator*> abs_ops;
-				int num_rep = map->get_abs_operators(ops[a_i],abs_ops);
-				if (num_rep == 0) {
+				int num_rep = map->get_abs_operators_by_index(a_i, abs_ops);
+				if (num_rep == 0)
 					continue;
-				}
 
-				int root_ind = -1; // will hold the index of the root changing representative.
-				for (int i=0;i<num_rep;i++) {
-					if(-1 < abs_ops[i]->get_post_val(0)) {
+				int root_ind = -1;
+				for (int i = 0; i < num_rep; i++) {
+					if (-1 < abs_ops[i]->get_post_val(0)) {
 						root_ind = i;
-						break;  // There are no two representatives both changing the root of binary fork.
+						break;
 					}
 				}
 
-				int act_ind = ops[a_i]->get_index();
-				double cost_to_share = pattern_costs[act_ind];
+				double cost_to_share = pattern_costs[a_i];
 
 				if (-1 == root_ind) {
-					//  All get the same cost
-					for (int i=0;i<num_rep;i++) {
+					for (int i = 0; i < num_rep; i++)
 						abs_ops[i]->set_double_cost(cost_to_share / num_rep);
-					}
 				} else {
-					// The root representative gets the minimum, all others get the rest
-					if( 0 == abs_ops[root_ind]->get_post_val(0)) {
+					if (0 == abs_ops[root_ind]->get_post_val(0)) {
 						abs_ops[root_ind]->set_double_cost(min0);
 						cost_to_share -= min0;
 					} else {
 						abs_ops[root_ind]->set_double_cost(min1);
 						cost_to_share -= min1;
 					}
-					for (int i=0;i<num_rep;i++) {
-						if (i != root_ind) {
-							abs_ops[i]->set_double_cost(cost_to_share / (num_rep-1));
-						}
+					for (int i = 0; i < num_rep; i++) {
+						if (i != root_ind)
+							abs_ops[i]->set_double_cost(cost_to_share / (num_rep - 1));
 					}
 				}
 			}
 			continue;
 		}
-		if (member->get_abstraction_type() == INVERTED_FORK) {
-
-			continue;
-		}
-		if (member->get_abstraction_type() == PATTERN) {
-
-			continue;
-		}
+		// INVERTED_FORK and PATTERN: no smart assignment yet
 	}
 }
 
@@ -1448,27 +1443,22 @@ void SPHeuristic::set_smart_uniform_representatives_cost() {
 
 	// The costs are uniformly partitioned between the patterns, inside each pattern first the whole cost
 	// is given to the root, then the minimum is found and the rest is partitioned uniformly between others.
-	const vector<DOperator*> &ops = original_problem->get_operators();
-
-	int num_ops = ops.size();
-	vector<double> rep_costs;
-	rep_costs.assign(num_ops,0.0);
+	OperatorsProxy task_ops = task_proxy.get_operators();
+	int num_ops = task_ops.size();
+	vector<double> rep_costs(num_ops, 0.0);
 	for (int a_i = 0; a_i < num_ops; a_i++) {
-		// Counting the number of actions
+		double op_cost = task_ops[a_i].get_cost();
 		vector<DOperator*> abs_ops;
 		for (int ind = 0; ind < get_ensemble_size(); ind++){
 			SolutionMethod* member = get_ensemble_member(ind);
 			if (!member->is_active())
 				continue;
 
-			member->get_mapping()->get_abs_operators(ops[a_i],abs_ops);
+			member->get_mapping()->get_abs_operators_by_index(a_i, abs_ops);
 		}
 		int num_rep = abs_ops.size();
 		if (num_rep > 0) {
-			double abs_cost = ops[a_i]->get_double_cost() / num_rep;
-			int act_ind = ops[a_i]->get_index();
-			assert(act_ind<num_ops);
-			rep_costs[act_ind] = abs_cost;
+			rep_costs[a_i] = op_cost / num_rep;
 		}
 	}
 
@@ -1490,62 +1480,48 @@ void SPHeuristic::set_smart_uniform_representatives_cost() {
 				int act_ind = map->get_orig_operator(A_r[a])->get_index();
 				double c = rep_costs[act_ind];
 				if (0 == A_r[a]->get_post_val(0)) {
-					min0 = min(min0,c);
+					min0 = min(min0, c);
 				} else {
-					min1 = min(min1,c);
+					min1 = min(min1, c);
 				}
 			}
 			// Set the costs of the actions in this pattern
 			for (int a_i = 0; a_i < num_ops; a_i++) {
-				// Counting the number of actions
 				vector<DOperator*> abs_ops;
-				int num_rep = map->get_abs_operators(ops[a_i],abs_ops);
-				if (num_rep == 0) {
+				int num_rep = map->get_abs_operators_by_index(a_i, abs_ops);
+				if (num_rep == 0)
 					continue;
-				}
 
-				int root_ind = -1; // will hold the index of the root changing representative.
-				for (int i=0;i<num_rep;i++) {
-					if(-1 < abs_ops[i]->get_post_val(0)) {
+				int root_ind = -1;
+				for (int i = 0; i < num_rep; i++) {
+					if (-1 < abs_ops[i]->get_post_val(0)) {
 						root_ind = i;
-						break;  // There are no two representatives both changing the root of binary fork.
+						break;
 					}
 				}
 
-				int act_ind = ops[a_i]->get_index();
-				double cost_to_share = rep_costs[act_ind] * num_rep;
+				double cost_to_share = rep_costs[a_i] * num_rep;
 
 				if (-1 == root_ind) {
-					//  All get the same cost
-					for (int i=0;i<num_rep;i++) {
+					for (int i = 0; i < num_rep; i++)
 						abs_ops[i]->set_double_cost(cost_to_share / num_rep);
-					}
 				} else {
-					// The root representative gets the minimum, all others get the rest
-					if( 0 == abs_ops[root_ind]->get_post_val(0)) {
+					if (0 == abs_ops[root_ind]->get_post_val(0)) {
 						abs_ops[root_ind]->set_double_cost(min0);
 						cost_to_share -= min0;
 					} else {
 						abs_ops[root_ind]->set_double_cost(min1);
 						cost_to_share -= min1;
 					}
-					for (int i=0;i<num_rep;i++) {
-						if (i != root_ind) {
-							abs_ops[i]->set_double_cost(cost_to_share / (num_rep-1));
-						}
+					for (int i = 0; i < num_rep; i++) {
+						if (i != root_ind)
+							abs_ops[i]->set_double_cost(cost_to_share / (num_rep - 1));
 					}
 				}
 			}
 			continue;
 		}
-		if (member->get_abstraction_type() == INVERTED_FORK) {
-
-			continue;
-		}
-		if (member->get_abstraction_type() == PATTERN) {
-
-			continue;
-		}
+		// INVERTED_FORK and PATTERN: no smart assignment yet
 	}
 }
 
@@ -1647,7 +1623,7 @@ SolutionMethod* SPHeuristic::add_binary_semifork(OneDependentHourglassesAbstract
 SolutionMethod* SPHeuristic::add_pattern(vector<int>& pattern) {
 //	Projection_OFF* ptrn = new Projection_OFF(pattern);
 	Projection* ptrn = new Projection(pattern);
-	ptrn->create(original_problem);
+	ptrn->create(task);
 	ptrn->set_abstraction_type(PATTERN);
 	return ptrn;
 }
@@ -1673,15 +1649,13 @@ void SPHeuristic::solve_all_and_remove_operators() {
 
 void SPHeuristic::check_cost_partition() {
 
-	// Checking the cost of the actions
-	// to be correctly partitioned between the representatives.
-	const vector<DOperator*> &ops = original_problem->get_operators();
-
-	int num_ops = ops.size();
+	// Checking the cost of the actions to be correctly partitioned between the representatives.
+	OperatorsProxy task_ops = task_proxy.get_operators();
+	int num_ops = task_ops.size();
 	for (int a_i = 0; a_i < num_ops; a_i++) {
+		double orig_cost = task_ops[a_i].get_cost();
 
-		// Counting the number of actions
-		vector<vector<DOperator*> > abs_ops;
+		vector<vector<DOperator*>> abs_ops;
 		double tot_cost = 0.0;
 		int num_abs = 0;
 		for (int ind = 0; ind < get_ensemble_size(); ind++){
@@ -1690,24 +1664,20 @@ void SPHeuristic::check_cost_partition() {
 				continue;
 
 			vector<DOperator*> abs_operators;
-			num_abs += member->get_mapping()->get_abs_operators(ops[a_i],abs_operators);
-//			cout << "Inc num abs operators for ensemble " << ind << " is " << num_abs << endl;
+			num_abs += member->get_mapping()->get_abs_operators_by_index(a_i, abs_operators);
 			abs_ops.push_back(abs_operators);
-			for (size_t i=0; i < abs_operators.size(); ++i) {
-				tot_cost += abs_operators[i]->get_double_cost();
-			}
+			for (const DOperator* op : abs_operators)
+				tot_cost += op->get_double_cost();
 		}
-		double orig_cost = ops[a_i]->get_double_cost();
 		if (tot_cost > orig_cost + 0.0000001) {
-			cout << "Problem with cost partition of the operator"<< endl;
-			ops[a_i]->dump();
-			cout << "Into "<< num_abs << " representatives"<< endl;
+			cout << "Problem with cost partition of operator " << task_ops[a_i].get_name()
+			     << " (cost=" << orig_cost << ") into " << num_abs << " representatives" << endl;
 			for (int ind = 0; ind < get_ensemble_size(); ind++){
 				SolutionMethod* member = get_ensemble_member(ind);
 				if (!member->is_active())
 					continue;
 
-				for (size_t i=0; i < abs_ops[ind].size(); ++i) {
+				for (size_t i = 0; i < abs_ops[ind].size(); ++i) {
 					cout << member->get_abstraction_index() <<
 					", " << member->w_var(abs_ops[ind][i]) << " (" <<
 					member->get_abstraction_index() + member->w_var(abs_ops[ind][i])

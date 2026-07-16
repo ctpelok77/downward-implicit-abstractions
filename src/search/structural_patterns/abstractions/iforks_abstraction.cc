@@ -4,7 +4,6 @@
 #include "../mappings/op_hash_mapping.h"
 #include "../mappings/var_proj_mapping.h"
 #include <string>
-// causal_graph: use task_utils
 
 using namespace std;
 
@@ -54,24 +53,23 @@ void IforksAbstraction::create(const Problem* p) {
 	if (get_abstraction_creation_status() == DONE)
 		return;
 
-	// Creating abstract variables, initial state.
 	const vector<string> &var_name = p->get_variable_names();
-
 	const vector<int> &var_domain = p->get_variable_domains();
 
-	vector<int> successors = p->get_causal_graph()->get_successors(var);
-	vector<int> predecessors = p->get_causal_graph()->get_predecessors(var);
+	const vector<int> &successors = p->get_causal_graph()->get_successors(var);
+	const vector<int> &predecessors = p->get_causal_graph()->get_predecessors(var);
 
 	if (0 == successors.size() && 0 == predecessors.size()) {
 		is_var_singleton = true;
 	}
 
+	int num_vars = var_name.size();
 	vector<int> abs_vars;
 	vector<int> orig_vars;
 	orig_vars.push_back(var);
 
 	for (size_t i=0; i < predecessors.size(); ++i) {
-		parents.push_back(predecessors[i]);  //saving the leafs with goals
+		parents.push_back(predecessors[i]);
 		orig_vars.push_back(predecessors[i]);
 	}
 
@@ -84,15 +82,12 @@ void IforksAbstraction::create(const Problem* p) {
 	map->set_original(p);
 	map->set_original_vars(orig_vars);
 
-	abs_vars.assign(var_name.size(),-1);
+	abs_vars.assign(num_vars,-1);
 
 	int var_count = orig_vars.size();
 
-	vector<string> new_var_name;
-	vector<int> new_var_domain;
-
-	new_var_name.resize(var_count);
-	new_var_domain.resize(var_count);
+	vector<string> new_var_name(var_count);
+	vector<int> new_var_domain(var_count);
 
 	for(int i = 0; i < var_count; i++) {
 		abs_vars[orig_vars[i]] = i;
@@ -121,17 +116,18 @@ void IforksAbstraction::create(const Problem* p) {
 	// Creating abstract action
 	const vector<DOperator*> &orig_ops = p->get_operators();
 
-	// Adding axioms as zero-cost operators
 	vector<DOperator*> ops, axioms;
 	vector<pair<DOperator*, DOperator*> > ops_to_add;
 
+	// Adding axioms as zero-cost operators
 	vector<DOperator> axi = p->get_axioms();
 	for (size_t i=0; i < axi.size(); ++i){
+		cout << "XXXXXXXX" << endl;
 		axioms.push_back(&axi[i]);
 	}
 
-	abstract_actions(abs_vars,orig_ops,ops,ops_to_add);
-	abstract_actions(abs_vars,axioms,ops,ops_to_add);
+	abstract_actions(abs_vars, orig_ops, ops, ops_to_add);
+	abstract_actions(abs_vars, axioms, ops, ops_to_add);
 
 	vector<DOperator> no_axioms;
 	Problem* abs_prob = new Problem(new_var_name, new_var_domain, init_state_buffer, g, ops, no_axioms);
@@ -179,7 +175,6 @@ void IforksAbstraction::abstract_action(const vector<int>& abs_vars, DOperator* 
 		if (effs.size() == 0)
 			continue;
 
-//		cout << "Creating action for variable " << v <<":"<< abs_vars[v] << endl;
 		vector<Prevail> new_prv;
 		if (-1 != prv_val) { // prevail on the variable defined
 			new_prv.push_back(Prevail(abs_vars[v], prv_val));
@@ -195,32 +190,32 @@ void IforksAbstraction::abstract_action(const vector<int>& abs_vars, DOperator* 
 #endif
 
 		vector<PrePost> new_pre;
-		int cond_val_child = -1;
 		for (size_t p=0; p < effs.size(); ++p) {
 			vector<Prevail> new_cond;
 			int eff_val_v = get_value_for_var(v,effs[p].cond);
 			if (-1 != eff_val_v) { // condition on the variable defined
 				new_cond.push_back(Prevail(abs_vars[v], eff_val_v));
 			}
-
-			cond_val_child = get_value_for_var(var,effs[p].cond);
-			// Creating effect
-			new_pre.push_back(PrePost(abs_vars[v], effs[p].pre, effs[p].post, new_cond));
-		}
-		if (cond_val_child == -1 && new_pre.size() == 1 && new_pre[0].cond.size() == 0) {
-			// Adding an effect as a prevail to the child changing action
-			child_prv.push_back(Prevail(abs_vars[v], new_pre[0].post));
+			// No need to add conditions on root variable, these will be captured by the child prevail
+			new_pre.push_back(PrePost(abs_vars[v],effs[p].pre,effs[p].post,new_cond));
 		}
 
 		DOperator* new_op = new DOperator(op->is_axiom(), new_prv, new_pre, nm, op->get_double_cost());
 		abs_op.push_back(new_op);
-//		new_op->dump();
 	}
 
-	if (root_effs.size() == 0)
+	// Creating representative for the child variable
+	if (abs_vars[var] < 0) { // var is not in the fork (shouldn't happen)
 		return;
+	}
 
-//	cout << "Creating action for variable " << var <<":"<< abs_vars[var] << endl;
+	vector<PrePost> effs;
+	op->get_var_pre_post(var, effs);
+	if (effs.size() == 0) {
+		return;
+	}
+
+	vector<Prevail> root_prv = child_prv;
 	string nm;
 #ifdef DEBUGMODE
 	nm = op->get_name();
@@ -231,41 +226,17 @@ void IforksAbstraction::abstract_action(const vector<int>& abs_vars, DOperator* 
 #endif
 
 	vector<PrePost> new_pre;
-	for (size_t p=0; p < root_effs.size(); ++p) {
+	for (size_t p=0; p < effs.size(); ++p) {
 		vector<Prevail> new_cond;
-		// Going over the parents, taking the condition value
-		for (size_t v=0; v < abs_vars.size(); ++v) {
-			if (abs_vars[v] < 0) { // The variable is not in fork
-				continue;
-			}
-
-			int pre_val_v = get_value_for_var(abs_vars[v], child_prv);
-			if (-1 != pre_val_v) { // prevail on the variable is defined
-				continue;
-			}
-
-			int eff_val_v = get_value_for_var(v, root_effs[p].cond);
-			if (-1 != eff_val_v) { // condition on the variable defined
-				new_cond.push_back(Prevail(abs_vars[v], eff_val_v));
-			}
+		int eff_val_child = get_value_for_var(var,effs[p].cond);
+		if (-1 != eff_val_child) { // condition on child variable defined
+			new_cond.push_back(Prevail(abs_vars[var], eff_val_child));
 		}
-
-		// Creating effect
-		new_pre.push_back(PrePost(abs_vars[var], root_effs[p].pre, root_effs[p].post, new_cond));
+		new_pre.push_back(PrePost(abs_vars[var],effs[p].pre,effs[p].post,new_cond));
 	}
 
-	DOperator* new_op = new DOperator(op->is_axiom(), child_prv, new_pre, nm, op->get_double_cost());
+	DOperator* new_op = new DOperator(op->is_axiom(), root_prv, new_pre, nm, op->get_double_cost());
 	abs_op.push_back(new_op);
-//	new_op->dump();
-}
-
-int IforksAbstraction::root_unconditional_prepost_index(DOperator* op) const{
-
-	const vector<PrePost> &pre = op->get_pre_post();
-	for (size_t i=0; i < pre.size(); ++i)
-		if ((pre[i].var == var) && (pre[i].cond.size() == 0))
-			return i;
-	return -1;
 }
 
 
@@ -277,14 +248,13 @@ int IforksAbstraction::root_prepost_index(DOperator* op) const {
 			return i;
 	return -1;
 }
-/*
-int IforksAbstraction::get_value_for_var(int v, vector<Prevail>& prv) const {
 
-	for (size_t ind=0; ind < prv.size(); ++ind) {
-		if (prv[ind].var == v) {
-			return prv[ind].prev;
-		}
-	}
+int IforksAbstraction::root_unconditional_prepost_index(DOperator* op) const {
+
+	const vector<PrePost> &pre = op->get_pre_post();
+	for (size_t i=0; i < pre.size(); ++i)
+		if ((pre[i].var == var) && (pre[i].cond.size() == 0))
+			return i;
 	return -1;
 }
-*/
+

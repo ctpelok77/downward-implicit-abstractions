@@ -17,6 +17,7 @@ public:
 	ForksAbstraction(int v);
 	virtual ~ForksAbstraction();
 
+	using GeneralAbstraction::create;
 	virtual void create(const Problem* p);
 	virtual void set_root_var_and_domain(Domain* new_dom) { var = new_dom->get_var();}
 	virtual void set_pattern(std::vector<int>&) {};

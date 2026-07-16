@@ -2,7 +2,6 @@
 #define STRUCTURAL_PATTERNS_MAPPINGS_MAPPING_H
 
 #include <vector>
-#include "../../task_proxy.h"
 #include "../problem.h"
 #include "../d_operator.h"
 
@@ -22,6 +21,13 @@ public:
 
 	virtual int get_abs_operators(DOperator* o, std::vector<DOperator*>& abs_ops) = 0;
 	virtual DOperator* get_orig_operator(DOperator* o) const = 0;
+
+	// Index-based variant: avoids going through the original Problem* pointer.
+	// Default delegates to the DOperator* overload; subclasses may override for
+	// direct hash-table lookup without touching the Problem object.
+	virtual int get_abs_operators_by_index(int op_index,
+	                                       std::vector<DOperator*> &abs_ops);
+	virtual bool has_abs_operators_by_index(int op_index) const;
 
 	Mapping(const Problem* orig, Problem* abs);
 	Mapping();

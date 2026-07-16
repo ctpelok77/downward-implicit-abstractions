@@ -4,7 +4,6 @@
 #include "general_abstraction.h"
 #include <vector>
 #include "../mappings/var_proj_mapping.h"
-#include "../problem.h"
 
 
 class VariablesProjection: public virtual GeneralAbstraction {
@@ -13,6 +12,7 @@ public:
 	VariablesProjection(std::vector<int>& pattern);
 	VariablesProjection();
 	virtual ~VariablesProjection();
+	using GeneralAbstraction::create;
 	virtual void create(const Problem* p);
 	virtual void set_pattern(std::vector<int>& pattern);
 	virtual void set_root_var_and_domain(Domain*) {};

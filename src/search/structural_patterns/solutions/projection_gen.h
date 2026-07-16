@@ -10,9 +10,6 @@ class Projection: public SolutionMethod {
 	std::vector<int> multiplier;
 
 protected:
-	void set_distances(double **sol, std::vector<int> free_vars, std::vector<int> state, const std::vector<int>& doms, DOperator* op);
-	void set_goal_distances(double **sol, std::vector<int> free_vars, std::vector<int> state, const std::vector<int>& doms, int last);
-
 	int number_of_d_variables, number_of_h_variables, number_of_w_var_variables;
 public:
 	Projection();

@@ -4,6 +4,8 @@
 #include <vector>
 #include <memory>
 
+#include "../task_proxy.h"
+
 #include "abstractions/forks_abstraction.h"
 #include "abstractions/general_abstraction.h"
 #include "abstractions/iforks_abstraction.h"
@@ -29,13 +31,11 @@ protected:
 
     int generate_general_cost_constraints(std::vector<SPLPConstraint *> &constr);
     int generate_uniform_cost_constraints(std::vector<SPLPConstraint *> &constr);
-    void calculate_representatives_cost(const std::vector<DOperator *> &ops,
-                                        std::vector<double> &costs);
     void update_costs_from_solution(Solution *sol);
 
-    int generate_cost_constraints(std::vector<SPLPConstraint *> &constr, int ind,
-                                  const std::vector<DOperator *> &ops,
-                                  std::vector<double> &costs);
+    int generate_cost_constraints_by_index(std::vector<SPLPConstraint *> &constr, int ind,
+                                           const OperatorsProxy &task_ops,
+                                           const std::vector<double> &costs);
 
     virtual SolutionMethod *add_pattern(std::vector<int> &pattern) override;
 

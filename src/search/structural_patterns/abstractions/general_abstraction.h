@@ -6,6 +6,9 @@
 #include "domain.h"
 #include "../SP_globals.h"
 
+#include <memory>
+
+class AbstractTask;
 
 class GeneralAbstraction {
 
@@ -19,6 +22,10 @@ public:
 	virtual ~GeneralAbstraction();
 
 	virtual void create(const Problem* p) = 0;
+	// Convenience overload: build a Problem from the shared AbstractTask and call create(Problem*).
+	// This lets call sites in SP_heuristic pass the Heuristic-owned shared_ptr<AbstractTask>
+	// instead of keeping a raw original_problem pointer around.
+	void create(const std::shared_ptr<AbstractTask> &task);
 	virtual void set_root_var_and_domain(Domain* new_dom) = 0;
 	virtual void set_pattern(std::vector<int>& pattern) = 0;
 	virtual void abstract_action(const std::vector<int>& abs_vars, DOperator* op, std::vector<DOperator*>& abs_op) = 0;

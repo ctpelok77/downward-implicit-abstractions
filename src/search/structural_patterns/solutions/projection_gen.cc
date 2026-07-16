@@ -1,9 +1,10 @@
 #include "projection_gen.h"
 #include "../mappings/mapping.h"
-#include <math.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include "../SP_globals.h"
+#include <math.h>
+#include <queue>
+#include <utility>
+#include <vector>
 
 using namespace std;
 
@@ -48,79 +49,116 @@ void Projection::initiate() {
 }
 
 
+// ---------------------------------------------------------------------------
+// Helper: enumerate all ground states consistent with a partial state
+// template (free variables = -1), calling `callback` for each.
+// ---------------------------------------------------------------------------
+static void enumerate_ground_states(
+        vector<int>& state,
+        vector<int>& free_vars,
+        const vector<int>& doms,
+        const function<void(const vector<int>&)>& callback) {
+    if (free_vars.empty()) {
+        callback(state);
+        return;
+    }
+    int fv = free_vars.back();
+    free_vars.pop_back();
+    for (int v = 0; v < doms[fv]; ++v) {
+        state[fv] = v;
+        enumerate_ground_states(state, free_vars, doms, callback);
+    }
+    free_vars.push_back(fv);
+}
+
 void Projection::solve() {
+    // Backward Dijkstra on the abstract state space.
+    // For each state s, dist[s] = min cost to reach a goal from s.
 
-	//static_constraints are
-	// (I)   d(s') <= d(s") + w(a)   for all <s',a,s">
-	// (II)    d(G) = 0              for all goals G
+    const Problem* abs = get_mapping()->get_abstract();
+    const vector<DOperator*>& ops = abs->get_operators();
+    const vector<int>& doms = abs->get_variable_domains();
+    int num_states = number_of_d_variables;
 
-	Mapping* map = get_mapping();
-	const Problem* abs = map->get_abstract();
+    // --- Build reverse adjacency list ---
+    // predecessors[succ] = list of (pred_rank, edge_cost)
+    vector<vector<pair<int, double>>> predecessors(num_states);
 
-	vector<vector<int> > states;
-	abs->generate_state_transition_graph(states);
-	const vector<DOperator*> &ops = abs->get_operators();
-	const vector<int> &doms = abs->get_variable_domains();
+    for (size_t it = 0; it < ops.size(); ++it) {
+        const DOperator* op = ops[it];
+        if (op->is_redundant())
+            continue;
+        double cost = op->get_double_cost();
+        const vector<PrePost>& pre_post = op->get_pre_post();
 
-	int numLPvars = get_num_vars() + 1;
-	double** sol = new double*[numLPvars];
+        // Build applicable-state template: -1 = free, >=0 = required value
+        vector<int> tmpl(num_vars, -1);
+        for (const Prevail& prv : op->get_prevail())
+            tmpl[prv.var] = prv.prev;
+        for (const PrePost& pp : pre_post)
+            if (pp.pre >= 0)
+                tmpl[pp.var] = pp.pre;
 
-	for (int i=0;i<numLPvars;i++) {
-		sol[i] = new double[numLPvars];
-		for (int j=0;j<numLPvars;j++) {
-			if (i==j)
-				sol[i][j] = 0.0;
-			else
-				sol[i][j] = infinity;
-		}
-	}
+        // Collect free variables in the template
+        vector<int> free_vars;
+        for (int i = 0; i < num_vars; ++i)
+            if (tmpl[i] < 0)
+                free_vars.push_back(i);
 
-	// (I)   d(s') <= d(s") + w(a)   for all <s',a,s">
-	for (size_t it=0; it < ops.size(); ++it) {
-		if (ops[it]->is_redundant())
-			continue;
-		// Per action we generate all the states this action is applicable in.
-		vector<int> generated = states[it];
-		vector<int> free_vars;
+        // For each ground applicable state, compute successor and record edge
+        enumerate_ground_states(tmpl, free_vars, doms,
+                [&](const vector<int>& state) {
+            vector<int> succ = state;
+            for (const PrePost& pp : pre_post)
+                succ[pp.var] = pp.post;
+            int pred_rank = d_var(state);
+            int succ_rank = d_var(succ);
+            if (pred_rank != succ_rank)
+                predecessors[succ_rank].emplace_back(pred_rank, cost);
+        });
+    }
 
-		for (size_t i=0; i < generated.size(); ++i) {
-			if (generated[i] < 0) {
-				free_vars.push_back(i);
-			}
-		}
-		set_distances(sol,free_vars,generated,doms,ops[it]);
-	}
-	// (II)      d(G) = 0           for all goals G
-	vector<int> goals;
-	abs->get_goal_vals(goals);
-	vector<int> free_vars;
+    // --- Seed: all abstract goal states at dist = 0 ---
+    vector<double> dist(num_states, infinity);
+    // min-heap: (dist, state_rank)
+    priority_queue<pair<double,int>,
+                   vector<pair<double,int>>,
+                   greater<pair<double,int>>> pq;
 
-	for (size_t i=0; i < goals.size(); ++i) {
-		if (goals[i] < 0) {
-			free_vars.push_back(i);
-		}
-	}
-	set_goal_distances(sol,free_vars,goals,doms,numLPvars-1);
+    vector<int> goals;
+    abs->get_goal_vals(goals);  // goals[i] = required value, -1 = free
+    vector<int> goal_free;
+    for (int i = 0; i < num_vars; ++i)
+        if (goals[i] < 0)
+            goal_free.push_back(i);
 
-	for (int k=0;k<numLPvars;k++) {
-		for (int i=0;i<numLPvars;i++) {
-			for (int j=0;j<numLPvars;j++) {
-				sol[i][j] = min(sol[i][j],sol[i][k] + sol[k][j]);
-			}
-		}
-	}
+    enumerate_ground_states(goals, goal_free, doms,
+            [&](const vector<int>& state) {
+        int rank = d_var(state);
+        if (dist[rank] > 0.0) {
+            dist[rank] = 0.0;
+            pq.emplace(0.0, rank);
+        }
+    });
 
-	solution->clear_solution();
+    // --- Dijkstra ---
+    while (!pq.empty()) {
+        auto [d, u] = pq.top(); pq.pop();
+        if (d > dist[u])
+            continue;  // stale entry
+        for (auto [pred, cost] : predecessors[u]) {
+            double nd = dist[u] + cost;
+            if (nd < dist[pred]) {
+                dist[pred] = nd;
+                pq.emplace(nd, pred);
+            }
+        }
+    }
 
-	for (int k=0;k<numLPvars-1;k++) {
-		solution->set_value(k,sol[k][numLPvars-1]);
-	}
-
-	for (int i=0;i<numLPvars;i++) {
-		delete [] sol[i];
-	}
-	delete [] sol;
-
+    // --- Store results ---
+    solution->clear_solution();
+    for (int k = 0; k < num_states; ++k)
+        solution->set_value(k, dist[k]);
 }
 
 double Projection::get_solution_value(const SPState &state) {
@@ -131,53 +169,6 @@ double Projection::get_solution_value(const SPState &state) {
 
 }
 
-void Projection::set_distances(double **sol, vector<int> free_vars, vector<int> state, const vector<int>& doms, DOperator* op) {
-
-	if (free_vars.size() == 0) {
-		// Stopping criteria
-		const vector<PrePost> &pre = op->get_pre_post();
-		// Creating the resulting state.
-		vector<int> next_state = state;
-		for (size_t i=0; i < pre.size(); ++i) {
-			next_state[pre[i].var] = pre[i].post;
-		}
-
-		int d_ind0 = d_var(state);
-		int d_ind1 = d_var(next_state);
-		if (d_ind0==d_ind1)
-			return;
-		double c = op->get_double_cost();
-		sol[d_ind0][d_ind1] = min(sol[d_ind0][d_ind1],c);
-		return;
-	}
-	// Recursive step (for each value of one of the free variables
-	int free_var = free_vars[free_vars.size()-1];
-	free_vars.pop_back();
-	int dom_size = doms[free_var];
-	for(int i = 0; i < dom_size; i++) {
-		state[free_var] = i;
-		set_distances(sol,free_vars,state,doms,op);
-	}
-
-}
-
-void Projection::set_goal_distances(double **sol, vector<int> free_vars, vector<int> state, const vector<int>& doms, int last) {
-
-	if (free_vars.size() == 0) {
-		// Stopping criteria
-		int d_ind = d_var(state);
-		sol[d_ind][last] = 0;
-		return;
-	}
-	// Recursive step (for each value of one of the free variables
-	int free_var = free_vars[free_vars.size()-1];
-	free_vars.pop_back();
-	int dom_size = doms[free_var];
-	for(int i = 0; i < dom_size; i++) {
-		state[free_var] = i;
-		set_goal_distances(sol,free_vars,state,doms,last);
-	}
-}
 
 
 int Projection::d_var(const SPState &state) const {

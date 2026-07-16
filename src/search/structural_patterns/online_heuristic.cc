@@ -60,7 +60,7 @@ SolutionMethod* OnlineHeuristic::add_bounded_inverted_fork(IforksAbstraction* if
 
 SolutionMethod* OnlineHeuristic::add_pattern(vector<int>& pattern) {
 	Projection_ON* ptrn = new Projection_ON(pattern);
-	ptrn->create(original_problem);
+	ptrn->create(task);
 	ptrn->set_abstraction_type(PATTERN);
 	return ptrn;
 }

@@ -1,4 +1,6 @@
 #include "general_abstraction.h"
+#include "../problem.h"
+#include "../../abstract_task.h"
 
 using namespace std;
 
@@ -6,8 +8,18 @@ GeneralAbstraction::GeneralAbstraction() : creation_status(NONE) {
 }
 
 GeneralAbstraction::~GeneralAbstraction() {
-//	if (m)
-//		delete m;
+}
+
+void GeneralAbstraction::create(const std::shared_ptr<AbstractTask> &task) {
+	// Build a Problem from the AbstractTask and delegate to the virtual overload.
+	// The Problem is owned by the Mapping (stored as get_mapping()->get_original()),
+	// so we must NOT delete it after create() sets it there.
+	// In branches where create() returns early without building a mapping (e.g.
+	// is_empty), the Problem was never stored and we free it here.
+	Problem *prob = new Problem(task);
+	create(prob);
+	if (get_mapping() == nullptr || get_mapping()->get_original() != prob)
+		delete prob;
 }
 
 

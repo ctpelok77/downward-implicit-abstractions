@@ -8,7 +8,10 @@
 #include "../SP_LPConstraint.h"
 #include "../../utils/system.h"
 
+#include <memory>
 #include <unordered_map>
+
+class AbstractTask;
 
 class SolutionMethod {
     // Caching is keyed by a flat integer encoding of the abstract state values.
@@ -43,6 +46,7 @@ public:
 	void set_root_var_and_domain(Domain* new_dom) {abstraction->set_root_var_and_domain(new_dom);}
 	void set_pattern(std::vector<int>& pattern) {abstraction->set_pattern(pattern);}
 	void create(const Problem* p) {abstraction->create(p);}
+	void create(const std::shared_ptr<AbstractTask> &t) {abstraction->create(t);}
 
 	int get_abstraction_index() const {return index;}
 	void set_abstraction_index(int ind) {index = ind;}

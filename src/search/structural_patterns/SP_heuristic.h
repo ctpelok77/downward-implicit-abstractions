@@ -2,6 +2,7 @@
 #define STRUCTURAL_PATTERNS_SPHEURISTIC_H
 
 #include <memory>
+#include <set>
 #include <vector>
 
 #include "abstractions/iforks_abstraction.h"
@@ -19,6 +20,7 @@
 #include "solutions/solution_method.h"
 #include "SP_globals.h"
 #include "../utils/logging.h"
+#include "../task_utils/causal_graph.h"
 
 #include <iostream>
 
@@ -35,16 +37,56 @@ class SPHeuristic: public Heuristic {
     CostPartitioning cost_partitioning;
     VariablesSelectionStrategy selected_ensemble;
     std::vector<SolutionMethod*> ensemble;
-    bool external_problem;
     std::vector<double> pattern_weights;
     bool use_caching;
     int semifork_hat_bound_size;
+
+    // Cached goal values: goal_vals_[v] == -1 if v is not a goal variable,
+    // otherwise the required goal value.  Populated in the constructor.
+    std::vector<int> goal_vals_;
+
 protected:
+    // Helpers that use task_proxy instead of original_problem for structural
+    // queries (variable count, domain size, CG, goals).  These are used during
+    // ensemble construction so that those paths no longer depend on Problem.
+    int sp_var_count() const { return task_proxy.get_variables().size(); }
+    int sp_var_domain(int v) const {
+        return task_proxy.get_variables()[v].get_domain_size();
+    }
+    bool sp_is_goal_var(int v) const { return goal_vals_[v] != -1; }
+    bool sp_has_goal_child(int v) const {
+        const causal_graph::CausalGraph &cg = task_proxy.get_causal_graph();
+        for (int s : cg.get_successors(v))
+            if (sp_is_goal_var(s)) return true;
+        return false;
+    }
+    bool sp_is_goal(const SPState &sp) const {
+        for (int v = 0; v < (int)goal_vals_.size(); ++v)
+            if (goal_vals_[v] != -1 && sp[v] != goal_vals_[v])
+                return false;
+        return true;
+    }
+
+    // DTG-based helpers: compute Domain Transition Graph successors for variable
+    // v from value val, and BFS backward distances to the goal value.
+    // These replace original_problem->get_dtg_successors / get_domain_values_by_distance_to_goal.
+    void sp_dtg_successors(int var, int val, std::vector<int> &succ) const;
+    void sp_domain_values_by_distance_to_goal(int var,
+                                              std::vector<std::vector<int>> &vals,
+                                              std::vector<int> &dist_to_goal) const;
+
+    // CG-based hat enumeration: replaces original_problem->compute_connected_variables_bounded_sets.
+    void sp_compute_hat_variants(int center, std::set<int> &curr, int bound,
+                                 std::set<std::set<int>> &result) const;
+    bool sp_hat_has_leaf(int center, const std::set<int> &hat) const;
+    bool sp_hat_connected_to_goals(int center, const std::set<int> &hat) const;
+    void sp_compute_connected_variables_bounded_sets(int v, int bound,
+                                                     std::vector<std::vector<int>> &hats) const;
+
     int SIZEOFPATTERNLIMIT;
     int PERCENTAGEOFENSEMBLE;
     int STATISTICS;
 
-    const Problem* original_problem;
     void create_binary_forks();
     void create_bounded_inverted_forks();
     void create_binary_forks_and_bounded_iforks();

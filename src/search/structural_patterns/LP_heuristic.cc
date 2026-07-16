@@ -61,7 +61,7 @@ int LPHeuristic::compute_heuristic(const State &ancestor_state) {
     State state = convert_ancestor_state(ancestor_state);
     SPState sp = to_sp_state(state);
 
-    if (original_problem->is_goal(sp))
+    if (sp_is_goal(sp))
         return 0;
 
     int res;
@@ -128,10 +128,24 @@ int LPHeuristic::compute_Optimal_heuristic(const SPState &state) {
 
 int LPHeuristic::compute_Additive_heuristic(const SPState &state) {
     double total_val = 0.0;
-    const vector<DOperator *> &ops = original_problem->get_operators();
+    OperatorsProxy task_ops = task_proxy.get_operators();
+    int num_task_ops = task_ops.size();
 
+    // Build per-operator uniform costs (same logic as calculate_representatives_cost)
     vector<double> costs;
-    calculate_representatives_cost(ops, costs);
+    costs.reserve(num_task_ops);
+    for (int a_i = 0; a_i < num_task_ops; a_i++) {
+        vector<DOperator*> abs_ops;
+        for (int ind = 0; ind < get_ensemble_size(); ind++) {
+            SolutionMethod *membr = get_ensemble_member(ind);
+            if (membr->is_active())
+                membr->get_mapping()->get_abs_operators_by_index(a_i, abs_ops);
+        }
+        int num_actions = (int)abs_ops.size();
+        costs.push_back(num_actions > 0
+                        ? task_ops[a_i].get_cost() / num_actions
+                        : LP_INFINITY);
+    }
 
     for (int ind = 0; ind < get_ensemble_size(); ind++) {
         SolutionMethod *membr = get_ensemble_member(ind);
@@ -144,7 +158,7 @@ int LPHeuristic::compute_Additive_heuristic(const SPState &state) {
 
         build_LP_objective(ind, obj_func);
         int num_nonzeros = build_LP_constraints(constr, ind, state);
-        num_nonzeros += generate_cost_constraints(constr, ind, ops, costs);
+        num_nonzeros += generate_cost_constraints_by_index(constr, ind, task_ops, costs);
 
         int n_rows = (int)constr.size();
         lp_prob->set_size(n_cols, n_rows, num_nonzeros);
@@ -212,11 +226,12 @@ int LPHeuristic::build_LP_constraints(vector<SPLPConstraint *> &constr,
 
 int LPHeuristic::generate_general_cost_constraints(vector<SPLPConstraint *> &constr) {
     int res = 0;
-    const vector<DOperator *> &ops = original_problem->get_operators();
-    int num_ops = (int)ops.size();
+    OperatorsProxy task_ops = task_proxy.get_operators();
+    int num_ops = task_ops.size();
 
     for (int a_i = 0; a_i < num_ops; a_i++) {
-        SPLPConstraint *lpc = new SPLPConstraint(0.0, ops[a_i]->get_double_cost(), false);
+        double op_cost = task_ops[a_i].get_cost();
+        SPLPConstraint *lpc = new SPLPConstraint(0.0, op_cost, false);
 
         int tmp_res = 0;
         for (int ind = 0; ind < get_ensemble_size(); ind++) {
@@ -226,7 +241,7 @@ int LPHeuristic::generate_general_cost_constraints(vector<SPLPConstraint *> &con
             int index = membr->get_abstraction_index();
             Mapping *map = membr->get_mapping();
             vector<DOperator *> abs_ops;
-            map->get_abs_operators(ops[a_i], abs_ops);
+            map->get_abs_operators_by_index(a_i, abs_ops);
             int num_abs_ops = (int)abs_ops.size();
             for (int j = 0; j < num_abs_ops; j++) {
                 int w_ind = index + membr->w_var(abs_ops[j]);
@@ -248,35 +263,30 @@ int LPHeuristic::generate_general_cost_constraints(vector<SPLPConstraint *> &con
 
 int LPHeuristic::generate_uniform_cost_constraints(vector<SPLPConstraint *> &constr) {
     int res = 0;
-    const vector<DOperator *> &ops = original_problem->get_operators();
+    OperatorsProxy task_ops = task_proxy.get_operators();
+    int num_ops = task_ops.size();
+
     vector<double> costs;
-    calculate_representatives_cost(ops, costs);
+    costs.reserve(num_ops);
+    for (int a_i = 0; a_i < num_ops; a_i++) {
+        vector<DOperator*> abs_ops;
+        for (int ind = 0; ind < get_ensemble_size(); ind++) {
+            SolutionMethod *membr = get_ensemble_member(ind);
+            if (membr->is_active())
+                membr->get_mapping()->get_abs_operators_by_index(a_i, abs_ops);
+        }
+        int num_actions = (int)abs_ops.size();
+        costs.push_back(num_actions > 0
+                        ? task_ops[a_i].get_cost() / num_actions
+                        : LP_INFINITY);
+    }
 
     for (int ind = 0; ind < get_ensemble_size(); ind++) {
         if (!get_ensemble_member(ind)->is_active())
             continue;
-        res += generate_cost_constraints(constr, ind, ops, costs);
+        res += generate_cost_constraints_by_index(constr, ind, task_ops, costs);
     }
     return res;
-}
-
-void LPHeuristic::calculate_representatives_cost(const vector<DOperator *> &ops,
-                                                  vector<double> &costs) {
-    int num_ops = (int)ops.size();
-    for (int a_i = 0; a_i < num_ops; a_i++) {
-        vector<DOperator *> abs_ops;
-        for (int ind = 0; ind < get_ensemble_size(); ind++) {
-            SolutionMethod *membr = get_ensemble_member(ind);
-            if (!membr->is_active())
-                continue;
-            membr->get_mapping()->get_abs_operators(ops[a_i], abs_ops);
-        }
-        int num_actions = (int)abs_ops.size();
-        if (num_actions > 0)
-            costs.push_back(ops[a_i]->get_double_cost() / num_actions);
-        else
-            costs.push_back(LP_INFINITY);
-    }
 }
 
 void LPHeuristic::update_costs_from_solution(Solution *sol) {
@@ -300,18 +310,19 @@ void LPHeuristic::update_costs_from_solution(Solution *sol) {
     }
 }
 
-int LPHeuristic::generate_cost_constraints(vector<SPLPConstraint *> &constr, int ind,
-                                            const vector<DOperator *> &ops,
-                                            vector<double> &costs) {
+int LPHeuristic::generate_cost_constraints_by_index(
+        vector<SPLPConstraint *> &constr, int ind,
+        const OperatorsProxy &task_ops,
+        const vector<double> &costs) {
     int res = 0;
-    int num_ops = (int)ops.size();
+    int num_ops = task_ops.size();
     SolutionMethod *membr = get_ensemble_member(ind);
     int index = membr->get_abstraction_index();
     Mapping *map = membr->get_mapping();
 
     for (int a_i = 0; a_i < num_ops; a_i++) {
         vector<DOperator *> abs_ops;
-        map->get_abs_operators(ops[a_i], abs_ops);
+        map->get_abs_operators_by_index(a_i, abs_ops);
         int num_abs_ops = (int)abs_ops.size();
         for (int j = 0; j < num_abs_ops; j++) {
             int w_ind = membr->w_var(abs_ops[j]);
@@ -352,7 +363,7 @@ SolutionMethod *LPHeuristic::add_binary_semifork(SemiForksAbstraction *sfork, Do
 
 SolutionMethod *LPHeuristic::add_pattern(vector<int> &pattern) {
     LPProjection *ptrn = new LPProjection(pattern);
-    ptrn->create(original_problem);
+    ptrn->create(task);
     ptrn->set_abstraction_type(PATTERN);
     return ptrn;
 }

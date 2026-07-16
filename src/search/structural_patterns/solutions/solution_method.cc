@@ -201,12 +201,14 @@ void SolutionMethod::dump() const {
 
 int SolutionMethod::encode_state(const SPState &state) const {
 	// Encode state as a single integer (Lehmer code / mixed-radix).
+	// Use the abstract Problem's domain sizes — these are small and specific
+	// to each abstract sub-problem, so Problem* is the right source here.
 	const Problem *abs = get_mapping()->get_abstract();
 	int code = 0;
-	int multiplier = 1;
+	int mult = 1;
 	for (size_t v=0; v < state.size(); ++v) {
-		code += state[v] * multiplier;
-		multiplier *= abs->get_variable_domain(v);
+		code += state[v] * mult;
+		mult *= abs->get_variable_domain(v);
 	}
 	return code;
 }
@@ -260,6 +262,5 @@ const std::vector<bool>& SolutionMethod::get_relevant_operators() const {
 */
 
 bool SolutionMethod::is_relevant(int op_no) const {
-	const vector<DOperator*> &ops = get_mapping()->get_original()->get_operators();
-	return get_mapping()->has_abs_operators(ops[op_no]);
+	return get_mapping()->has_abs_operators_by_index(op_no);
 }
