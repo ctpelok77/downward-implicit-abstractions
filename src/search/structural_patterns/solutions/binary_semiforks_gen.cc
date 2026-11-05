@@ -565,8 +565,11 @@ Solution* BinarySemiFork::solve_step(const vector<vector<int> >& states, int cha
 				free_vars.push_back(hat_vars[i]);
 			}
 		}
-		for (int theta = 0; theta < doms[get_abs_root()]; theta++)
+		for (int theta = 0; theta < doms[get_abs_root()]; theta++) {
+			if (generated[get_abs_root()] >= 0 && generated[get_abs_root()] != theta)
+				continue;
 			set_distances(sol,free_vars,generated,doms,ops[it],changes,theta);
+		}
 	}
 
 
@@ -652,7 +655,7 @@ void BinarySemiFork::set_distances(double **sol, vector<int> free_vars, vector<i
 
 			if (get_abs_root() == pre[i].var) {
 				new_theta = pre[i].post;
-				assert(new_theta == 1-theta);
+				assert(new_theta == 1-theta || new_theta == theta);
 			}
 		}
 //		cout << "From state (" << theta << ") " ;

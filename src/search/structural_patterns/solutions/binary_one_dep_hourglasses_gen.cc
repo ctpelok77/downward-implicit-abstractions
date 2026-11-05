@@ -681,7 +681,7 @@ void BinaryOneDepHourglass::solve_using_parents(Hat* parents) {
 
 
 		// Going over the applicable actions, minimizing.
-		assert(res.size() == changes);
+		assert(res[changes-1]);
 		for (size_t it=0; it < ops.size(); ++it) {
 			if (ops[it]->is_redundant())
 				continue;

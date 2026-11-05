@@ -42,7 +42,7 @@ OneDependentBinaryHourglassesAbstraction::OneDependentBinaryHourglassesAbstracti
 
 	// Binarization according to new_dom
 //	OpHashVarProjMapping* hg_map =  dynamic_cast<OpHashVarProjMapping*>(this->get_mapping());
-	CompositionMapping* hg_map =  dynamic_cast<CompositionMapping*>(f->get_mapping());
+	Mapping* hg_map = f->get_mapping();
 
 	const Problem* abs_p = hg_map->get_abstract();
 //	cout << "OneDependentHourglassesAbstraction abstract problem" << endl;
@@ -84,7 +84,7 @@ void OneDependentBinaryHourglassesAbstraction::create(const Problem* p) {
 		return;
 	if (2 == dom->get_old_size())
 		return;
-	OpHashVarProjMapping* hg_map =  dynamic_cast<OpHashVarProjMapping*>(this->get_mapping());
+	Mapping* hg_map = this->get_mapping();
 	const Problem* abs_p = hg_map->get_abstract();
 
 	int new_var = hg_map->get_abstract_var(dom->get_var());
