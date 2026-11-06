@@ -1,3 +1,4 @@
+#include "../../task_utils/causal_graph.h"
 #include "bounded_iforks.h"
 #include "domain_abstraction.h"
 #include "../solutions/projection_gen.h"
@@ -38,8 +39,8 @@ BoundedIforksAbstraction::BoundedIforksAbstraction(IforksAbstraction* ifork, Dom
 
 	// Deal with variables that are not in the causal graph anymore
 	const Problem* new_p = map->get_abstract();
-	vector<int> new_pred = new_p->get_causal_graph()->get_predecessors(new_var);
-	vector<int> old_pred = abs_p->get_causal_graph()->get_predecessors(new_var);
+	vector<int> new_pred = new_p->get_causal_graph().get_predecessors(new_var);
+	vector<int> old_pred = abs_p->get_causal_graph().get_predecessors(new_var);
 	if (new_pred.size() == old_pred.size())
 		return;
 
@@ -89,8 +90,8 @@ void BoundedIforksAbstraction::create(const Problem* p) {
 	this->set_mapping(map);
 	// Deal with variables that are not in the causal graph anymore
 	const Problem* new_p = map->get_abstract();
-	vector<int> new_pred = new_p->get_causal_graph()->get_predecessors(new_var);
-	vector<int> old_pred = abs_p->get_causal_graph()->get_predecessors(new_var);
+	vector<int> new_pred = new_p->get_causal_graph().get_predecessors(new_var);
+	vector<int> old_pred = abs_p->get_causal_graph().get_predecessors(new_var);
 	if (new_pred.size() == old_pred.size())
 		return;
 

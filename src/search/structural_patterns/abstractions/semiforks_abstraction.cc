@@ -1,3 +1,4 @@
+#include "../../task_utils/causal_graph.h"
 #include "../SP_globals.h"
 #include "semiforks_abstraction.h"
 #include "../mappings/op_hash_var_proj_mapping.h"
@@ -60,8 +61,8 @@ void SemiForksAbstraction::create(const Problem* p) {
 	const vector<string> &var_name = p->get_variable_names();
 	const vector<int> &var_domain = p->get_variable_domains();
 
-	const vector<int> &successors = p->get_causal_graph()->get_successors(var);
-	const vector<int> &predecessors = p->get_causal_graph()->get_predecessors(var);
+	const vector<int> &successors = p->get_causal_graph().get_successors(var);
+	const vector<int> &predecessors = p->get_causal_graph().get_predecessors(var);
 
 	if (0 == successors.size() && 0 == predecessors.size()) {
 		is_var_singleton = true;

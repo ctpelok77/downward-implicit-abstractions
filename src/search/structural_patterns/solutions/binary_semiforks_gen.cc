@@ -1,6 +1,7 @@
 // globals removed — use TaskProxy
 // timer removed
 
+#include "../../task_utils/causal_graph.h"
 #include "../SP_globals.h"
 #include "binary_semiforks_gen.h"
 #include "../mappings/mapping.h"
@@ -22,8 +23,8 @@ BinarySemiFork::BinarySemiFork(GeneralAbstraction* abs) :SolutionMethod() {
 	for (int v=0; v < num_abs_vars; v++) {
 		if (v == abs_root) // Skipping the root
 			continue;
-		const vector<int> &successors = p->get_causal_graph()->get_successors(v);
-		const vector<int> &predecessors = p->get_causal_graph()->get_predecessors(v);
+		const vector<int> &successors = p->get_causal_graph().get_successors(v);
+		const vector<int> &predecessors = p->get_causal_graph().get_predecessors(v);
 
 		if (successors.size() == 0 && predecessors.size() == 1 && predecessors[0] == abs_root) {
 			// Definitely a leaf

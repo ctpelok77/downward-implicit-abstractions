@@ -1,6 +1,7 @@
 // globals removed — use TaskProxy
 // timer removed
 
+#include "../../task_utils/causal_graph.h"
 #include "../SP_globals.h"
 #include "binary_one_dep_hourglasses_gen.h"
 #include "../abstractions/one_dep_binary_hourglasses.h"
@@ -20,10 +21,10 @@ BinaryOneDepHourglass::BinaryOneDepHourglass(GeneralAbstraction* abs) :SolutionM
 	// Setting the parents to be all the predecessors that are not goal successors
 	const Problem* p = get_mapping()->get_abstract();
 	int abs_root = abs->get_abstract_root();
-	const vector<int> &predecessors = p->get_causal_graph()->get_predecessors(abs_root);
+	const vector<int> &predecessors = p->get_causal_graph().get_predecessors(abs_root);
 	set<int> pred_set;
 	pred_set.insert(predecessors.begin(), predecessors.end());
-	const vector<int> &successors = p->get_causal_graph()->get_successors(abs_root);
+	const vector<int> &successors = p->get_causal_graph().get_successors(abs_root);
 
 	for (size_t i=0; i < successors.size(); ++i) {
 		int ch = successors[i];

@@ -2,6 +2,7 @@
 #include "d_operator.h"
 #include "../utils/system.h"
 #include "../abstract_task.h"
+#include "../task_utils/causal_graph.h"
 #include <vector>
 #include <map>
 #include <memory>
@@ -62,7 +63,6 @@ static DOperator* build_doperator(const AbstractTask &task,
 
 Problem::Problem(const shared_ptr<AbstractTask> &task) : task(task) {
     borrowed_ops = false;
-    cg = nullptr;
     CG_distances_matrix_computed = false;
 
     int num_vars = task->get_num_variables();
@@ -100,7 +100,6 @@ Problem::Problem(const shared_ptr<AbstractTask> &task) : task(task) {
     }
 
     create_problem(var_name, var_domain, g, ops, axi);
-    set_causal_graph(new SPCausalGraph(num_vars, operators, axioms));
 }
 
 Problem::Problem() {
@@ -108,7 +107,6 @@ Problem::Problem() {
     // Real construction always goes through Problem(shared_ptr<AbstractTask>) or
     // the explicit-vector constructor.
     borrowed_ops = false;
-    cg = nullptr;
     CG_distances_matrix_computed = false;
 }
 
@@ -123,8 +121,6 @@ Problem::Problem(const vector<string>& var_name,
 	initial_state_values = init_state_buffer;
 
 	create_problem(var_name, var_domain, g, ops, axi);
-	set_causal_graph(new SPCausalGraph(
-	    static_cast<int>(variable_name.size()), operators, axioms));
 
 	CG_distances_matrix_computed = false;
 }
@@ -163,7 +159,6 @@ Problem::Problem(const Problem& p) {
 */
 
 Problem::~Problem() {
-	delete_causal_graph();
 	delete_operators();
 	/*
 	if (!borrowed_ops)
@@ -544,7 +539,7 @@ void Problem::compute_CG_distances_matrix() {
 	}
 	for (int i=0;i<num_vars;i++) {
 		CG_distances_matrix[i][i] = 0;
-		const vector<int>& succ = get_causal_graph()->get_successors(i);
+		const vector<int>& succ = get_causal_graph().get_successors(i);
 		for (size_t j=0; j < succ.size(); ++j) {
 			CG_distances_matrix[i][succ[j]] = 1;
 		}
@@ -621,7 +616,7 @@ bool Problem::chech_hat_for_leafs(int v, const set<int>& hat) const {
 	//    is not connected to the rest of the hat and has no outgoing edge to c, then it is a definite leaf.
 	for (set<int>::iterator it=hat.begin(); it != hat.end(); ++it) {
 		int var = *it;
-		const vector<int>& succ = get_causal_graph()->get_successors(var);
+		const vector<int>& succ = get_causal_graph().get_successors(var);
 		bool arc_to_center = false;
 		for (size_t i=0; i < succ.size(); ++i) {
 			if (succ[i] == v) {
@@ -633,7 +628,7 @@ bool Problem::chech_hat_for_leafs(int v, const set<int>& hat) const {
 			continue;
 
 		// Checking whether connected to other hat vars
-		const vector<int>& pred = get_causal_graph()->get_predecessors(var);
+		const vector<int>& pred = get_causal_graph().get_predecessors(var);
 		bool neigh_connected = false;
 		for (size_t i=0; i < pred.size(); ++i) {
 			if (hat.find(pred[i]) != hat.end()) {
@@ -684,7 +679,7 @@ bool Problem::chech_hat_connected_to_goals(int v, const set<int>& hat) const {
 	while (connected.size() <= hat.size()) {
 		set<int> new_connected;
 		for (set<int>::iterator it3=iterating.begin(); it3 != iterating.end(); ++it3) {
-			const vector<int>& pred = get_causal_graph()->get_predecessors(*it3);
+			const vector<int>& pred = get_causal_graph().get_predecessors(*it3);
 			for (size_t i=0; i < pred.size(); ++i) {
 				if (curr_vec[pred[i]] && !iterating_vec[pred[i]]) {
 					// New element found
@@ -732,14 +727,14 @@ void Problem::compute_hat_variants(int c, set<int>& curr, int bound, set<set<int
 //cout << "curr size = 0" << endl;
 	// Creating a set of elements to add - neighbours of all elements currently in the set and the center, excluding those that are already there.
 	set<int> toadd;
-	const vector<int>& pred = get_causal_graph()->get_predecessors(c);
+	const vector<int>& pred = get_causal_graph().get_predecessors(c);
 	toadd.insert(pred.begin(), pred.end());
-	const vector<int>& succ = get_causal_graph()->get_successors(c);
+	const vector<int>& succ = get_causal_graph().get_successors(c);
 	toadd.insert(succ.begin(), succ.end());
 	for (set<int>::iterator it=curr.begin(); it != curr.end(); ++it) {
-		const vector<int>& curr_pred = get_causal_graph()->get_predecessors(*it);
+		const vector<int>& curr_pred = get_causal_graph().get_predecessors(*it);
 		toadd.insert(curr_pred.begin(), curr_pred.end());
-		const vector<int>& curr_succ = get_causal_graph()->get_successors(*it);
+		const vector<int>& curr_succ = get_causal_graph().get_successors(*it);
 		toadd.insert(curr_succ.begin(), curr_succ.end());
 	}
 	for (set<int>::iterator it=curr.begin(); it != curr.end(); ++it) {
@@ -1112,7 +1107,7 @@ bool Problem::check_nonconditional() {
 
 bool Problem::has_goal_child(int var) const {
 
-	const vector<int>& successors = get_causal_graph()->get_successors(var);
+	const vector<int>& successors = get_causal_graph().get_successors(var);
 
 	for (size_t ch=0; ch < successors.size(); ++ch) {
 		if (is_goal_var(successors[ch])) {
@@ -1330,10 +1325,6 @@ void Problem::delete_operators(){
 	v_operators.clear();
 }
 
-void Problem::delete_causal_graph() {
-	if (cg)
-		delete cg;
-}
 
 
 void Problem::dump_CG_dot(const char* filename) const {
@@ -1346,7 +1337,7 @@ void Problem::dump_CG_dot(const char* filename) const {
     		os << i << " [shape=circle];" << endl;
 
     for (int i = 0; i < get_vars_number(); i++) {
-		const vector<int>& succ = get_causal_graph()->get_successors(i);
+		const vector<int>& succ = get_causal_graph().get_successors(i);
 
         for (size_t j=0; j < succ.size(); ++j)
             os << i << " -> " << succ[j] << ";" << endl;
@@ -1360,4 +1351,8 @@ int Problem::get_max_domain_size() const {
     		max_size = variable_domain[i];
     }
     return max_size;
+}
+
+const causal_graph::CausalGraph &Problem::get_causal_graph() const {
+	return causal_graph::get_causal_graph(task.get());
 }

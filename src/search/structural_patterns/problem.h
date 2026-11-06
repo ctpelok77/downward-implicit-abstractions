@@ -7,9 +7,11 @@
 #include <string>
 
 #include "d_operator.h"
-#include "sp_causal_graph.h"
 
 class AbstractTask;
+namespace causal_graph {
+class CausalGraph;
+}
 
 /*
   Within structural_patterns, a "State" is simply a vector<int> of variable
@@ -29,7 +31,6 @@ class Problem {
 
 	std::vector<std::pair<int, int>> goal;
 	std::vector<DOperator*> operators;
-	SPCausalGraph* cg;
 	std::vector<int> goal_vars;
 	std::vector<std::vector<DOperator*>> v_operators;
 	std::vector<DOperator> axioms;
@@ -89,11 +90,10 @@ public:
 	int get_max_domain_size() const;
 	int get_actions_number() const {return operators.size();}
 	const std::vector<DOperator>& get_axioms() const{return axioms;}
-	SPCausalGraph* get_causal_graph() const {return cg;}
+	const causal_graph::CausalGraph &get_causal_graph() const;
 	const std::shared_ptr<AbstractTask> &get_task() const {return task;}
 	void set_task(const std::shared_ptr<AbstractTask> &t) {task = t;}
 
-	void set_causal_graph(SPCausalGraph* causalg) {cg = causalg;}
 
 	void get_dtg_successors(int v, int val, std::vector<int>& vals) const;
 	void get_domain_decomposition_by_distance_from_value(int v, int val, std::vector<std::vector<int> >& vals, std::vector<int>& len_from_val) const;
@@ -128,7 +128,6 @@ public:
  	void increase_operators_cost();
 
  	void delete_operators();
- 	void delete_causal_graph();
 
  	int get_mem_size() const ;
  	void dumpPrevail(Prevail pre) const;

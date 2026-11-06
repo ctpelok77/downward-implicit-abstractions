@@ -1001,7 +1001,6 @@ create_fast_downward_library(
         structural_patterns/problem
         structural_patterns/d_operator
         structural_patterns/solution
-        structural_patterns/sp_causal_graph
         structural_patterns/sp_abstract_task
         structural_patterns/mappings/mapping
         structural_patterns/mappings/var_proj_mapping
