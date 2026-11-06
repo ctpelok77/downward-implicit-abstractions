@@ -43,7 +43,7 @@ BENCHMARKS_DIR = os.environ["DOWNWARD_BENCHMARKS"]
 BUILD = "release"
 
 # Revision nick used in the algorithm names, and the commit it stands for.
-REV = "88be6d3bb"
+REV = "b18c33a4c"
 
 # ---------------------------------------------------------------------------
 # Configurations
