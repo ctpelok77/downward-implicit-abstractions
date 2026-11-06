@@ -534,9 +534,9 @@ double BinaryOneDepHourglass::get_solution_value_for_hat(const Hat* hat, const S
 	// Getting all the bounds in advance, fixing them as needed inside the function
 
 	for (int sigma = lower_b; sigma<=upper_b; sigma=sigma+sigma_step ) {
-		std::cout << "Calculating h value for sigma = " << sigma << " and state" << std::endl;
+		//std::cout << "Calculating h value for sigma = " << sigma << " and state" << std::endl;
 		double sol = get_h_val(hat,sigma,abs_state);
-		cout << "h value is " << sol << endl;
+		//cout << "h value is " << sol << endl;
 		if (sol == 0.0)
 			return sol; //minimal possible - no need to continue.
 
@@ -554,17 +554,17 @@ double BinaryOneDepHourglass::get_h_val(const Hat* hat, int sigma, const SPState
 
 	int x = par_vars[0];
 	int y = par_vars[1];
-	cout << "Parents: x="<<x<<" and y="<<y<<endl;
+	//cout << "Parents: x="<<x<<" and y="<<y<<endl;
 
 	int s_x = (int) eval_state[x];
 	int s_y = (int) eval_state[y];
 
 	int hat_ind = short_m_var(s_x, s_y, root_val);
-	cout << "Index for m var:" << hat_ind << endl;
-	cout << "m_{" <<x<<","<<y<<"}(" << s_x << "," << s_y << "," << root_val << " | "<< sigma-1 << " )" << endl;
+	//cout << "Index for m var:" << hat_ind << endl;
+	//cout << "m_{" <<x<<","<<y<<"}(" << s_x << "," << s_y << "," << root_val << " | "<< sigma-1 << " )" << endl;
 	// The hat solutions are kept for the number of changes, which is sigma - 1.
 	double sol = hat->get_solution_value(sigma-1, hat_ind);
-	cout << "m_{" <<x<<","<<y<<"}(" << s_x << "," << s_y << "," << root_val << " | "<< sigma-1 << " ) = " << sol << endl;
+	//cout << "m_{" <<x<<","<<y<<"}(" << s_x << "," << s_y << "," << root_val << " | "<< sigma-1 << " ) = " << sol << endl;
 	double tmp_sol;
 	if (sol  == infinity)
 		return sol;
@@ -576,7 +576,7 @@ double BinaryOneDepHourglass::get_h_val(const Hat* hat, int sigma, const SPState
 
 		int v_sigma = (sigma < sigma_bounds[leaf_ind]) ? sigma : sigma_bounds[leaf_ind];  // min(sigma, bounds[var]);
 		tmp_sol = solution->get_value(d_var(leaf_ind,val,v_sigma,root_val));
-		cout << "d(" << var << ","<<val<<","<<v_sigma<<","<<root_val<<")="<<tmp_sol<<endl;
+		//cout << "d(" << var << ","<<val<<","<<v_sigma<<","<<root_val<<")="<<tmp_sol<<endl;
 		if (tmp_sol  == infinity)
 			return tmp_sol;
 		sol += tmp_sol;
