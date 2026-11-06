@@ -26,7 +26,7 @@ public:
 	}
     void set_solutions(const std::vector<Solution*>& sols) { hat_solutions = sols; }
     double get_solution_value(int changes, int var) const {
-    	std::cout << "Getting value for " << changes << " changes out of " << hat_solutions.size() << " possible values" << std::endl;
+    	//std::cout << "Getting value for " << changes << " changes out of " << hat_solutions.size() << " possible values" << std::endl;
     	return hat_solutions[changes]->get_value(var); }
     const std::vector<int>& get_vars() const { return vars; }
     int get_num_hat_states() const { return num_hat_states; }

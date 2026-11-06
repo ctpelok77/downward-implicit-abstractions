@@ -462,7 +462,7 @@ double BinaryOneDepHourglass::get_solution_value(const SPState &state) {
 			return cached_val;
 	}
 	double parents_sol = get_parents_value(abs_state);
-	cout << "All parents cost of achieving the goals is " << parents_sol << endl;
+	//cout << "All parents cost of achieving the goals is " << parents_sol << endl;
 	if (parents_sol  == infinity)
 		return parents_sol;
 
@@ -471,7 +471,7 @@ double BinaryOneDepHourglass::get_solution_value(const SPState &state) {
 	for (size_t i=0; i < parent_hats.size(); ++i) {
 
 		double sol = parents_sol - get_parents_value(parent_hats[i], abs_state);
-		cout << "Non covered parents cost of achieving the goals is " << sol << endl;
+		//cout << "Non covered parents cost of achieving the goals is " << sol << endl;
 		sol += get_solution_value_for_hat(parent_hats[i], abs_state);
 		if (sol == 0.0)
 			return sol; //minimal possible - no need to continue.
