@@ -111,8 +111,7 @@ void VariablesProjection::create(const Problem* p) {
 	abstract_actions(abs_vars,orig_ops,ops,ops_to_add);
 	abstract_actions(abs_vars,axioms,ops,ops_to_add);
 
-	vector<DOperator> no_axioms;
-	Problem* abs_prob = new Problem(var_name, var_domain, init_state_buffer, g, ops, no_axioms);
+	Problem* abs_prob = build_abstract_problem(p, var_name, var_domain, init_state_buffer, g, ops, ops_to_add, ptrn);
 
 	map->set_abstract(abs_prob);
 	map->initialize();

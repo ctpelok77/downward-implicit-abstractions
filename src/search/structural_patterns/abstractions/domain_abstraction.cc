@@ -140,8 +140,10 @@ void DomainAbstraction::create(const Problem* p) {
 	abstract_actions(abs_vars,orig_ops,ops,ops_to_add);
 	abstract_actions(abs_vars,axioms,ops,ops_to_add);
 
-	vector<DOperator> no_axioms;
-	Problem* abs_prob = new Problem(var_name, new_var_domain, init_state_buffer, new_goal, ops, no_axioms);
+	vector<int> value_map(var_domain[dom->get_var()]);
+	for (int val = 0; val < var_domain[dom->get_var()]; ++val)
+		value_map[val] = dom->get_abs_value(val);
+	Problem* abs_prob = build_abstract_problem(p, var_name, new_var_domain, init_state_buffer, new_goal, ops, ops_to_add, vector<int>(), dom->get_var(), value_map);
 
 	map->set_abstract(abs_prob);
 	map->initialize();

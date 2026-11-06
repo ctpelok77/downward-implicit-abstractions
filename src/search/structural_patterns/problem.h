@@ -37,6 +37,7 @@ class Problem {
 	int** CG_distances_matrix;
 	bool CG_distances_matrix_computed;
 	std::vector<int> initial_state_values;
+	std::shared_ptr<AbstractTask> task;
 
 private:
 	void get_all_cycle_free_paths_to_goal_ops(int v, std::vector<DOperator*>& A_v, std::vector<std::vector<DOperator*> >& paths) const;
@@ -89,6 +90,8 @@ public:
 	int get_actions_number() const {return operators.size();}
 	const std::vector<DOperator>& get_axioms() const{return axioms;}
 	SPCausalGraph* get_causal_graph() const {return cg;}
+	const std::shared_ptr<AbstractTask> &get_task() const {return task;}
+	void set_task(const std::shared_ptr<AbstractTask> &t) {task = t;}
 
 	void set_causal_graph(SPCausalGraph* causalg) {cg = causalg;}
 

@@ -32,6 +32,19 @@ public:
 	virtual void abstract_actions(const std::vector<int>& abs_vars, const std::vector<DOperator*>& orig_ops,
 			std::vector<DOperator*>& ops, std::vector<std::pair<DOperator*, DOperator*> >& ops_to_add);
 
+	// Builds the abstract Problem of this stage from the computed vectors and
+	// attaches the corresponding SPAbstractTask, whose parent is p's task.
+	static Problem* build_abstract_problem(const Problem* p,
+			const std::vector<std::string>& var_name,
+			const std::vector<int>& var_domain,
+			const std::vector<int>& init_state,
+			const std::vector<std::pair<int, int> >& goal,
+			const std::vector<DOperator*>& ops,
+			const std::vector<std::pair<DOperator*, DOperator*> >& ops_to_add,
+			std::vector<int> parent_vars,
+			int abstracted_var = -1,
+			std::vector<int> value_map = std::vector<int>());
+
 	virtual Mapping* get_mapping() const;
 	virtual void set_mapping(Mapping* map);
 

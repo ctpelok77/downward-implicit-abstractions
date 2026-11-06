@@ -158,8 +158,7 @@ void HourglassesAbstraction::create(const Problem* p) {
 	abstract_actions(abs_vars,orig_ops,ops,ops_to_add);
 	abstract_actions(abs_vars,axioms,ops,ops_to_add);
 
-	vector<DOperator> no_axioms;
-	Problem* abs_prob = new Problem(new_var_name, new_var_domain, init_state_buffer, g, ops, no_axioms);
+	Problem* abs_prob = build_abstract_problem(p, new_var_name, new_var_domain, init_state_buffer, g, ops, ops_to_add, orig_vars);
 
 	map->set_abstract(abs_prob);
 	map->initialize();

@@ -1,6 +1,9 @@
 #include "general_abstraction.h"
 #include "../problem.h"
+#include "../sp_abstract_task.h"
 #include "../../abstract_task.h"
+
+#include <cassert>
 
 using namespace std;
 
@@ -51,4 +54,62 @@ void GeneralAbstraction::abstract_actions(const vector<int>& abs_vars, const vec
 			ops_to_add.push_back(to_add);
 		}
 	}
+}
+
+Problem* GeneralAbstraction::build_abstract_problem(const Problem* p,
+		const vector<string>& var_name,
+		const vector<int>& var_domain,
+		const vector<int>& init_state,
+		const vector<pair<int, int> >& goal,
+		const vector<DOperator*>& ops,
+		const vector<pair<DOperator*, DOperator*> >& ops_to_add,
+		vector<int> parent_vars,
+		int abstracted_var,
+		vector<int> value_map) {
+	vector<DOperator> no_axioms;
+	Problem* abs_prob = new Problem(var_name, var_domain, init_state, goal, ops, no_axioms);
+
+	// abstract_actions pushes to ops and ops_to_add in lockstep.
+	assert(ops.size() == ops_to_add.size());
+	vector<int> parent_ops;
+	parent_ops.reserve(ops_to_add.size());
+	for (size_t i=0; i < ops_to_add.size(); ++i) {
+		assert(ops_to_add[i].second == ops[i]);
+		DOperator* orig = ops_to_add[i].first;
+		int index = -1;
+		for (int j = 0; j < p->get_actions_number(); ++j) {
+			if (p->get_action_by_index(j) == orig) {
+				index = j;
+				break;
+			}
+		}
+		parent_ops.push_back(index);  // -1: originates from a parent axiom
+	}
+
+	abs_prob->set_task(make_shared<SPAbstractTask>(
+		p->get_task(), vector<string>(var_name), vector<int>(var_domain),
+		vector<int>(init_state), goal, ops, std::move(parent_ops),
+		std::move(parent_vars), abstracted_var, std::move(value_map)));
+
+#ifndef NDEBUG
+	// The task must describe exactly the same abstract problem.
+	Problem check(abs_prob->get_task());
+	assert(check.get_variable_domains() == abs_prob->get_variable_domains());
+	assert(check.get_initial_state() == abs_prob->get_initial_state());
+	vector<int> g1, g2;
+	check.get_goal_vals(g1);
+	abs_prob->get_goal_vals(g2);
+	assert(g1 == g2);
+	assert(check.get_actions_number() == abs_prob->get_actions_number());
+	for (int i = 0; i < abs_prob->get_actions_number(); ++i) {
+		const DOperator* a = abs_prob->get_action_by_index(i);
+		const DOperator* b = check.get_action_by_index(i);
+		assert(a->get_prevail() == b->get_prevail());
+		assert(a->get_pre_post().size() == b->get_pre_post().size());
+		for (size_t k = 0; k < a->get_pre_post().size(); ++k)
+			assert(a->get_pre_post()[k] == b->get_pre_post()[k]);
+		assert(a->get_double_cost() == b->get_double_cost());
+	}
+#endif
+	return abs_prob;
 }

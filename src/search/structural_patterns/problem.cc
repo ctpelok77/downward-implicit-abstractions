@@ -60,7 +60,7 @@ static DOperator* build_doperator(const AbstractTask &task,
     return new DOperator(is_axiom, prevail, pre_post, name, cost);
 }
 
-Problem::Problem(const shared_ptr<AbstractTask> &task) {
+Problem::Problem(const shared_ptr<AbstractTask> &task) : task(task) {
     borrowed_ops = false;
     cg = nullptr;
     CG_distances_matrix_computed = false;

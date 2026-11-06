@@ -123,8 +123,7 @@ void KDependence::create(const Problem* p) {
 	KDependence::abstract_actions(abs_vars,axioms,ops,ops_to_add);
 //	cout << "==================================================================" << endl;
 
-	vector<DOperator> no_axioms;
-	Problem* abs_prob = new Problem(var_name, var_domain, init_state_buffer, new_goal, ops, no_axioms);
+	Problem* abs_prob = build_abstract_problem(p, var_name, var_domain, init_state_buffer, new_goal, ops, ops_to_add, vector<int>());
 
 	//Creating the empty mapping
 	OpHashMapping* map = new OpHashMapping();
