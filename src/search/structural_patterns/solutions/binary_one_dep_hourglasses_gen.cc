@@ -648,6 +648,11 @@ void BinaryOneDepHourglass::solve_using_parents(Hat* parents) {
 	int root_goal = abs->get_goal_val(get_abs_root());
 	int start_theta = (root_goal == -1) ? 0 : root_goal;
 	int end_theta = (root_goal == -1) ? doms[get_abs_root()] - 1 : root_goal;
+	// With no changes left, a non-goal root value cannot reach the goal.
+	for(int val_x = 0; val_x < doms_x; val_x++)
+		for(int val_y = 0; val_y < doms_y; val_y++)
+			for(int theta = 0; theta < doms[get_abs_root()]; theta++)
+				init_sol->set_value(short_m_var(val_x,val_y,theta), infinity);
 	for(int val_x = 0; val_x < doms_x; val_x++) {
 		double c_x = 0.0;
 		if (-1 != g_x) {
