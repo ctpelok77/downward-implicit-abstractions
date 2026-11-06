@@ -4,6 +4,8 @@
 #include "../../abstract_task.h"
 
 #include <cassert>
+#include <memory>
+#include <unordered_map>
 
 using namespace std;
 
@@ -14,15 +16,13 @@ GeneralAbstraction::~GeneralAbstraction() {
 }
 
 void GeneralAbstraction::create(const std::shared_ptr<AbstractTask> &task) {
-	// Build a Problem from the AbstractTask and delegate to the virtual overload.
-	// The Problem is owned by the Mapping (stored as get_mapping()->get_original()),
-	// so we must NOT delete it after create() sets it there.
-	// In branches where create() returns early without building a mapping (e.g.
-	// is_empty), the Problem was never stored and we free it here.
-	Problem *prob = new Problem(task);
-	create(prob);
-	if (get_mapping() == nullptr || get_mapping()->get_original() != prob)
-		delete prob;
+	// One Problem view of each root task, shared by all abstractions built on
+	// it and kept for the lifetime of the process (mappings refer to it).
+	static unordered_map<const AbstractTask*, unique_ptr<Problem>> root_problems;
+	unique_ptr<Problem> &prob = root_problems[task.get()];
+	if (!prob)
+		prob = make_unique<Problem>(task);
+	create(prob.get());
 }
 
 

@@ -1,3 +1,4 @@
+#include "../../abstract_task.h"
 #include "solution_method.h"
 #include <cfloat>
 #include <limits>
@@ -226,12 +227,19 @@ void SolutionMethod::set_cached_state_value(const SPState &abs_state, double val
 }
 
 SPState SolutionMethod::get_abstract_state(const SPState &state) {
-	int num_abstract_variables = get_mapping()->get_abstract()->get_vars_number();
-	vector<int> state_buffer(num_abstract_variables);
-	for (int abstract_variable = 0; abstract_variable < num_abstract_variables; abstract_variable++) {
-		state_buffer[abstract_variable] = get_mapping()->get_abstract_state_value(state, abstract_variable);
-	}
-	return get_mapping()->get_abstract()->get_state_by_values(state_buffer);
+	// The mapping's original Problem holds the task the state belongs to (the
+	// heuristic's task); the abstract task's chain of stages ends there.
+	Mapping* map = get_mapping();
+	SPState abs_state = state;
+	map->get_abstract()->get_task()->convert_ancestor_state_values(
+		abs_state, map->get_original()->get_task().get());
+#ifndef NDEBUG
+	int num_abstract_variables = map->get_abstract()->get_vars_number();
+	assert(static_cast<int>(abs_state.size()) == num_abstract_variables);
+	for (int abstract_variable = 0; abstract_variable < num_abstract_variables; abstract_variable++)
+		assert(abs_state[abstract_variable] == map->get_abstract_state_value(state, abstract_variable));
+#endif
+	return abs_state;
 }
 
 double SolutionMethod::sum_infinity(double num1, double num2) const {

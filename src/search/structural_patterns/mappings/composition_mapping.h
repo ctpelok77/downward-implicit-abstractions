@@ -22,6 +22,9 @@ public:
 
 	virtual bool has_abs_operators(DOperator* o) const;
 
+	virtual int get_abs_operators_by_index(int op_index, std::vector<DOperator*>& abs_ops) override;
+	virtual bool has_abs_operators_by_index(int op_index) const override;
+
 };
 
 #endif /* COMPOSITION_MAPPING_H */

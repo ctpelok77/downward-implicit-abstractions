@@ -71,3 +71,23 @@ bool CompositionMapping::has_abs_operators(DOperator* o) const {
 	}
 	return false;
 }
+
+int CompositionMapping::get_abs_operators_by_index(int op_index, vector<DOperator*>& abs_ops) {
+	vector<DOperator*> ops;
+	from_map->get_abs_operators_by_index(op_index, ops);
+	int tot = 0;
+	for (size_t i=0; i < ops.size(); ++i)
+		tot += to_map->get_abs_operators(ops[i], abs_ops);
+	return tot;
+}
+
+bool CompositionMapping::has_abs_operators_by_index(int op_index) const {
+	if (!from_map->has_abs_operators_by_index(op_index))
+		return false;
+	vector<DOperator*> ops;
+	from_map->get_abs_operators_by_index(op_index, ops);
+	for (size_t i=0; i < ops.size(); ++i)
+		if (to_map->has_abs_operators(ops[i]))
+			return true;
+	return false;
+}
