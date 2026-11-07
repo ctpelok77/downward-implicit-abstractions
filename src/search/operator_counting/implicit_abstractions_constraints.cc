@@ -49,8 +49,7 @@ ImplicitAbstractionsConstraints::ImplicitAbstractionsConstraints(
         statistics,
         cache,
         semifork_bound);
-
-    heur->initialize();
+    // The SPHeuristic constructor already initializes (and solves) the ensemble.
 
     for (int i = 0; i < heur->get_ensemble_size(); ++i) {
         SolutionMethod *member = heur->get_ensemble_member(i);
