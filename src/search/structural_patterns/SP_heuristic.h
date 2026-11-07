@@ -114,7 +114,6 @@ protected:
     Domain* create_id_domain(int var, int dom_size) const;
     Domain* create_DGV_domain(int var, std::vector<int>& distances, int lb, int ub) const;
 
-    void create_ensemble_from_file(std::istream &in);
     void set_smart_representatives_cost();
     void set_smart_uniform_representatives_cost();
 
@@ -161,22 +160,6 @@ public:
         bool cache,
         int semifork_bound);
 
-    // Secondary constructor: supply an already-constructed Problem (for LP heuristic path).
-    SPHeuristic(
-        const std::shared_ptr<AbstractTask> &transform,
-        bool cache_estimates,
-        const std::string &description,
-        utils::Verbosity verbosity,
-        DecompositionStrategy strategy,
-        SingletonStrategy singletons,
-        CostPartitioning cost_part,
-        VariablesSelectionStrategy var_strategy,
-        int pattern_max_size,
-        int ensemble_pct,
-        int statistics,
-        bool cache,
-        int semifork_bound,
-        const Problem* prob);
 
     virtual ~SPHeuristic();
 

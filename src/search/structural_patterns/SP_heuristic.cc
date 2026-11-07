@@ -84,37 +84,6 @@ SPHeuristic::SPHeuristic(
     initialize();
 }
 
-SPHeuristic::SPHeuristic(
-        const shared_ptr<AbstractTask> &transform,
-        bool cache_estimates,
-        const string &description,
-        utils::Verbosity verbosity,
-        DecompositionStrategy strat,
-        SingletonStrategy sing,
-        CostPartitioning cost_part,
-        VariablesSelectionStrategy var_strat,
-        int pattern_max_size,
-        int ens_pct,
-        int stats,
-        bool cache,
-        int sfbound,
-        const Problem* prob)
-    : Heuristic(transform, cache_estimates, description, verbosity) {
-    (void)prob; // original_problem no longer needed; kept for ABI compat
-    // Build goal_vals_ cache from task_proxy (populated by Heuristic base).
-    int nv = task_proxy.get_variables().size();
-    goal_vals_.assign(nv, -1);
-    for (FactProxy gf : task_proxy.get_goals())
-        goal_vals_[gf.get_variable().get_id()] = gf.get_value();
-    init_sp_fields(this,
-        SIZEOFPATTERNLIMIT, PERCENTAGEOFENSEMBLE, STATISTICS,
-        selected_ensemble, use_caching, strategy, singletons_strategy,
-        cost_partitioning, semifork_hat_bound_size,
-        strat, sing, cost_part, var_strat,
-        pattern_max_size, ens_pct, stats, cache, sfbound);
-    initialize();
-}
-
 
 SPHeuristic::~SPHeuristic() {
 
@@ -221,49 +190,6 @@ void SPHeuristic::create_ensemble() {
 	// Shouldn't happen
 	cout << "NO STRATEGY SELECTED!!!" << endl;
 	exit_with(utils::ExitCode::SEARCH_INPUT_ERROR);
-}
-
-void SPHeuristic::create_ensemble_from_file(istream &//in
-		) {
-	cout << "Ensemble creation from file option is currently disabled." << endl;
-	exit_with(utils::ExitCode::SEARCH_UNSUPPORTED);
-/*
-	const vector<int> &var_dom = original_problem->get_variable_domains();
-    int var_num = original_problem->get_vars_number();
-
-    check_magic(in, "begin_strategy");
-    int count;
-    in >> count;
-    if (count != var_num) {
-    	cout << "The total number of variables does not match" << endl;
-    	exit_with(utils::ExitCode::SEARCH_INPUT_ERROR);
-    }
-    for(int v = 0; v < count; v++) {
-		string name;
-		in >> name;
-
-		int var = original_problem->get_var_index(name);
-		if (-1 == var) {
-	    	cout << "The variable name " << name << " doesn't exist." << endl;
-	    	exit_with(utils::ExitCode::SEARCH_INPUT_ERROR);
-	    }
-		int var_strategy;  // 0 - nothing, 1 - fork only, 2 - inverted fork only, 3 - both
-		in >> var_strategy;
-		if (var_strategy < 0 || var_strategy > 3) {
-			cout << "Unknown strategy for variable " << var << endl;
-			exit_with(utils::ExitCode::SEARCH_INPUT_ERROR);
-		}
-		if (var_strategy == 1 || (var_strategy == 3 && original_problem->has_goal_child(var))) {
-			//creating fork for variable i
-			create_binary_fork(var,var_dom[var], var_strategy == 1);
-		}
-		if (var_strategy == 2 || var_strategy == 3) {
-			//creating inverted fork for variable i
-			create_bounded_inverted_fork(var,var_dom[var]);
-		}
-	}
-    check_magic(in, "end_strategy");
-*/
 }
 
 bool SPHeuristic::is_heuristic_applicable() const {
