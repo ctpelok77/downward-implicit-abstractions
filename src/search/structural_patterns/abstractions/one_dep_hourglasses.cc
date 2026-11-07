@@ -1,4 +1,5 @@
 #include "one_dep_hourglasses.h"
+#include <cassert>
 #include "k_dependence.h"
 #include "hourglasses_abstraction.h"
 #include "../mappings/composition_mapping.h"
@@ -72,8 +73,11 @@ void OneDependentHourglassesAbstraction::create(const Problem* p) {
 	OpHashVarProjMapping* hg_map =  dynamic_cast<OpHashVarProjMapping*>(this->HourglassesAbstraction::get_mapping());
 	const Problem* abs_p = hg_map->get_abstract();
 
+	// The creation status is shared with the hourglass stage (virtual base).
+	set_abstraction_creation_status(NONE);
 	KDependence::create(abs_p);
 	OpHashMapping* kd_map =  dynamic_cast<OpHashMapping*>(get_mapping());
+	assert(kd_map != hg_map);
 
 	CompositionMapping* map = new CompositionMapping(hg_map,kd_map);
 	this->set_mapping(map);

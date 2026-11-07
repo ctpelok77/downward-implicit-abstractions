@@ -20,6 +20,7 @@ BinaryForksAbstraction::BinaryForksAbstraction(ForksAbstraction* f, Domain* new_
 		return;
 	set_mapping(f->get_mapping());
 	set_abstraction_type(f->get_abstraction_type());
+	abs_root_var = f->get_abstract_root();
 	if (f->is_empty_abstraction())
 		return;
 	if (2 == dom->get_old_size())

@@ -22,6 +22,7 @@ BoundedIforksAbstraction::BoundedIforksAbstraction(IforksAbstraction* ifork, Dom
 		return;
 	set_mapping(ifork->get_mapping());
 	set_abstraction_type(ifork->get_abstraction_type());
+	abs_root_var = ifork->get_abstract_root();
 	if (ifork->is_empty_abstraction())
 		return;
 	if (dom->get_new_size() == dom->get_old_size())
