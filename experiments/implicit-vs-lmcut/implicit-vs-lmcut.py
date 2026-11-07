@@ -18,7 +18,7 @@ build has no LP solver).
 Requirements:
     pip install lab downward
     export DOWNWARD_BENCHMARKS=/path/to/downward-benchmarks
-    REV must be a commit of the repository containing this script.
+    The planner is built from the current HEAD (override with IA_REV).
 
 Usage:
     python implicit-vs-lmcut.py --test yes --all   # a few tasks, to test the setup
@@ -26,10 +26,11 @@ Usage:
     python implicit-vs-lmcut.py 1 2 3              # or single steps (see --help)
 
 Environment overrides: IA_PROCESSES (default 60), IA_TIME_LIMIT (default 30m),
-IA_MEMORY_LIMIT (default 3584M).
+IA_MEMORY_LIMIT (default 3584M), IA_REV (default HEAD).
 """
 
 import os
+import subprocess
 
 from lab.environments import LocalEnvironment
 from downward.reports.absolute import AbsoluteReport
@@ -42,8 +43,11 @@ from common_setup import IssueConfig, IssueExperiment
 BENCHMARKS_DIR = os.environ["DOWNWARD_BENCHMARKS"]
 BUILD = "release"
 
-# Revision nick used in the algorithm names, and the commit it stands for.
-REV = "b18c33a4c"
+# The commit all algorithms are built from (also used in the algorithm names):
+# IA_REV if set, otherwise the current HEAD of this repository.
+REV = os.environ.get("IA_REV") or subprocess.check_output(
+    ["git", "rev-parse", "--short=9", "HEAD"],
+    cwd=os.path.dirname(os.path.abspath(__file__)), text=True).strip()
 
 # ---------------------------------------------------------------------------
 # Configurations

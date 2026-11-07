@@ -3,12 +3,13 @@
 `implicit-vs-lmcut.py` runs A* with the ported implicit abstractions heuristic
 (strategies 0–4: forks, inverted forks, both, semiforks, hourglasses), LM-cut
 and blind search on `DEFAULT_OPTIMAL_SUITE` (65 domains), with 30 minutes and
-3584 MB per run. All algorithms are built from the commit in `REV`.
+3584 MB per run. All algorithms are built from the current `HEAD` of the repository
+(set `IA_REV` to use another commit).
 
 Requirements:
 - lab (`pip install lab downward`), Python 3, CMake and a C++ compiler.
 - `DOWNWARD_BENCHMARKS`: a checkout of https://github.com/aibasel/downward-benchmarks.
-- The commit `REV` must exist in the repository this script lives in.
+- Run it from a checkout of this repository; uncommitted changes are not used.
 
 Running:
 
