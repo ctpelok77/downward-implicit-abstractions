@@ -161,6 +161,13 @@ void ForksAbstraction::create(const Problem* p) {
 
 void ForksAbstraction::abstract_action(const vector<int>& abs_vars, DOperator* op, vector<DOperator*>& abs_op){
 	// An action for each variable in the effects is created
+//	cout << "Abstracting action "<< endl;
+//	op->dump();
+//	cout << "Result (abstract variables [";
+//	for (size_t v=0; v < abs_vars.size(); ++v) {
+//		cout << " " << v << ":" << abs_vars[v];
+//	}
+//	cout << "])" << endl;
 
 	const vector<Prevail> &prv = op->get_prevail();
 	int root_val = get_value_for_var(var,prv);
@@ -169,7 +176,7 @@ void ForksAbstraction::abstract_action(const vector<int>& abs_vars, DOperator* o
 	op->get_var_pre_post(var, root_effs);
 
 	// Going over the variables and creating a representative for each
-	for (int v=0; v < (int)abs_vars.size(); ++v) {
+	for (size_t v=0; v < abs_vars.size(); ++v) {
 		if (abs_vars[v] < 0) { // The variable is not in fork
 			continue;
 		}
@@ -180,33 +187,60 @@ void ForksAbstraction::abstract_action(const vector<int>& abs_vars, DOperator* o
 		if (effs.size() == 0)
 			continue;
 
+//		cout << "Creating action for variable " << v <<":"<< abs_vars[v] << endl;
 		vector<Prevail> new_prv;
 		if ((int)v == var && root_effs.size() == 0) // Not changing root variable
 				continue;
 
 		if ((int)v != var) {
-			if (root_val != -1)
-				new_prv.push_back(Prevail(abs_vars[var],root_val)); // Adding prevail on root variable
-			else if (root_effs.size() > 0) {
-				assert(root_effs.size() == 1);
+			// Creating root prevail for child changing action
+			if (root_effs.size() == 1 && root_effs[0].cond.size() == 0) {
+				// Depending on the effect of root changing action
 				new_prv.push_back(Prevail(abs_vars[var], root_effs[0].post));
+			} else {
+				// Depending on the prevail, if defined
+				if (root_val != -1) {
+					// Creating prevail
+					new_prv.push_back(Prevail(abs_vars[var], root_val));
+				}
 			}
 		}
-
-		assert(effs.size() == 1);
-		vector<Prevail> empty;
-		vector<PrePost> new_pre;
-		new_pre.push_back(PrePost(abs_vars[v],effs[0].pre,effs[0].post,empty));
+		int val_v = get_value_for_var(v,prv);
+		if (val_v != -1) {
+			// Creating prevail
+			new_prv.push_back(Prevail(abs_vars[v], val_v));
+		}
 		string nm;
 #ifdef DEBUGMODE
 		nm = op->get_name();
 		const int max_str_len(42);
 		char my_string[max_str_len+1];
-		snprintf(my_string, max_str_len, "::%d::%#x",abs_vars[v], (unsigned int) this);
+		snprintf(my_string, max_str_len, "::0::%d::%#x",abs_vars[v], (unsigned int) this);
 		nm += my_string;
 #endif
 
-		DOperator* new_op = new DOperator(op->is_axiom(),new_prv, new_pre, nm, op->get_double_cost());
+		vector<PrePost> new_pre;
+		for (size_t p=0; p < effs.size(); ++p) {
+			vector<Prevail> new_cond;
+			int eff_val_v = get_value_for_var(v,effs[p].cond);
+			if (-1 != eff_val_v) { // condition on the variable defined
+				new_cond.push_back(Prevail(abs_vars[v], eff_val_v));
+			}
+			if ((int)v != var) {
+				int eff_val_root = get_value_for_var(var,effs[p].cond);
+				if (root_val != -1) { // precondition on root defined
+					assert(eff_val_root == -1 || root_val == eff_val_root);
+				} else {
+					if (-1 != eff_val_root) { // condition on root defined
+						new_cond.push_back(Prevail(abs_vars[var], eff_val_root));
+					}
+				}
+			}
+			// Creating effect
+			new_pre.push_back(PrePost(abs_vars[v], effs[p].pre, effs[p].post, new_cond));
+		}
+
+		DOperator* new_op = new DOperator(op->is_axiom(), new_prv, new_pre, nm, op->get_double_cost());
 		abs_op.push_back(new_op);
 	}
 }

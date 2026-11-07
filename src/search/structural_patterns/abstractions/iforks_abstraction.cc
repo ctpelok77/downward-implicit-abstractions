@@ -190,32 +190,29 @@ void IforksAbstraction::abstract_action(const vector<int>& abs_vars, DOperator* 
 #endif
 
 		vector<PrePost> new_pre;
+		int cond_val_child = -1;
 		for (size_t p=0; p < effs.size(); ++p) {
 			vector<Prevail> new_cond;
 			int eff_val_v = get_value_for_var(v,effs[p].cond);
 			if (-1 != eff_val_v) { // condition on the variable defined
 				new_cond.push_back(Prevail(abs_vars[v], eff_val_v));
 			}
-			// No need to add conditions on root variable, these will be captured by the child prevail
+
+			cond_val_child = get_value_for_var(var,effs[p].cond);
 			new_pre.push_back(PrePost(abs_vars[v],effs[p].pre,effs[p].post,new_cond));
+		}
+		if (cond_val_child == -1 && new_pre.size() == 1 && new_pre[0].cond.size() == 0) {
+			// Adding an effect as a prevail to the child changing action
+			child_prv.push_back(Prevail(abs_vars[v], new_pre[0].post));
 		}
 
 		DOperator* new_op = new DOperator(op->is_axiom(), new_prv, new_pre, nm, op->get_double_cost());
 		abs_op.push_back(new_op);
 	}
 
-	// Creating representative for the child variable
-	if (abs_vars[var] < 0) { // var is not in the fork (shouldn't happen)
+	if (root_effs.size() == 0)
 		return;
-	}
 
-	vector<PrePost> effs;
-	op->get_var_pre_post(var, effs);
-	if (effs.size() == 0) {
-		return;
-	}
-
-	vector<Prevail> root_prv = child_prv;
 	string nm;
 #ifdef DEBUGMODE
 	nm = op->get_name();
@@ -226,16 +223,29 @@ void IforksAbstraction::abstract_action(const vector<int>& abs_vars, DOperator* 
 #endif
 
 	vector<PrePost> new_pre;
-	for (size_t p=0; p < effs.size(); ++p) {
+	for (size_t p=0; p < root_effs.size(); ++p) {
 		vector<Prevail> new_cond;
-		int eff_val_child = get_value_for_var(var,effs[p].cond);
-		if (-1 != eff_val_child) { // condition on child variable defined
-			new_cond.push_back(Prevail(abs_vars[var], eff_val_child));
+		// Going over the parents, taking the condition value
+		for (size_t v=0; v < abs_vars.size(); ++v) {
+			if (abs_vars[v] < 0) { // The variable is not in fork
+				continue;
+			}
+
+			int pre_val_v = get_value_for_var(abs_vars[v], child_prv);
+			if (-1 != pre_val_v) { // prevail on the variable is defined
+				continue;
+			}
+
+			int eff_val_v = get_value_for_var(v, root_effs[p].cond);
+			if (-1 != eff_val_v) { // condition on the variable defined
+				new_cond.push_back(Prevail(abs_vars[v], eff_val_v));
+			}
 		}
-		new_pre.push_back(PrePost(abs_vars[var],effs[p].pre,effs[p].post,new_cond));
+
+		new_pre.push_back(PrePost(abs_vars[var], root_effs[p].pre, root_effs[p].post, new_cond));
 	}
 
-	DOperator* new_op = new DOperator(op->is_axiom(), root_prv, new_pre, nm, op->get_double_cost());
+	DOperator* new_op = new DOperator(op->is_axiom(), child_prv, new_pre, nm, op->get_double_cost());
 	abs_op.push_back(new_op);
 }
 

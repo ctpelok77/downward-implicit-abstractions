@@ -8,14 +8,14 @@
  "blocks/probBLOCKS-4-0 s=1": {
   "cost": "6",
   "exit": "0",
-  "expansions": "77",
-  "h0": "1"
+  "expansions": "44",
+  "h0": "3"
  },
  "blocks/probBLOCKS-4-0 s=2": {
   "cost": "6",
   "exit": "0",
-  "expansions": "25",
-  "h0": "3"
+  "expansions": "12",
+  "h0": "4"
  },
  "blocks/probBLOCKS-4-0 s=3": {
   "cost": "6",
@@ -38,13 +38,13 @@
  "blocks/probBLOCKS-5-0 s=1": {
   "cost": "12",
   "exit": "0",
-  "expansions": "459",
-  "h0": "1"
+  "expansions": "313",
+  "h0": "2"
  },
  "blocks/probBLOCKS-5-0 s=2": {
   "cost": "12",
   "exit": "0",
-  "expansions": "154",
+  "expansions": "115",
   "h0": "3"
  },
  "blocks/probBLOCKS-5-0 s=3": {
@@ -68,14 +68,14 @@
  "blocks/probBLOCKS-6-0 s=1": {
   "cost": "12",
   "exit": "0",
-  "expansions": "1385",
-  "h0": "1"
+  "expansions": "764",
+  "h0": "2"
  },
  "blocks/probBLOCKS-6-0 s=2": {
   "cost": "12",
   "exit": "0",
-  "expansions": "269",
-  "h0": "4"
+  "expansions": "209",
+  "h0": "5"
  },
  "blocks/probBLOCKS-6-0 s=3": {
   "cost": "12",
@@ -98,13 +98,13 @@
  "depot/p01 s=1": {
   "cost": "10",
   "exit": "0",
-  "expansions": "319",
-  "h0": "1"
+  "expansions": "293",
+  "h0": "2"
  },
  "depot/p01 s=2": {
   "cost": "10",
   "exit": "0",
-  "expansions": "166",
+  "expansions": "148",
   "h0": "3"
  },
  "depot/p01 s=3": {
@@ -128,13 +128,13 @@
  "depot/p02 s=1": {
   "cost": "15",
   "exit": "0",
-  "expansions": "11630",
+  "expansions": "10444",
   "h0": "1"
  },
  "depot/p02 s=2": {
   "cost": "15",
   "exit": "0",
-  "expansions": "3013",
+  "expansions": "2637",
   "h0": "4"
  },
  "depot/p02 s=3": {
@@ -188,14 +188,14 @@
  "driverlog/p02 s=1": {
   "cost": "19",
   "exit": "0",
-  "expansions": "19045",
+  "expansions": "18449",
   "h0": "11"
  },
  "driverlog/p02 s=2": {
   "cost": "19",
   "exit": "0",
-  "expansions": "16131",
-  "h0": "11"
+  "expansions": "15829",
+  "h0": "12"
  },
  "driverlog/p02 s=3": {
   "cost": "19",
@@ -278,13 +278,13 @@
  "freecell/p01 s=1": {
   "cost": "8",
   "exit": "0",
-  "expansions": "1806",
-  "h0": "2"
+  "expansions": "1179",
+  "h0": "3"
  },
  "freecell/p01 s=2": {
   "cost": "8",
   "exit": "0",
-  "expansions": "303",
+  "expansions": "266",
   "h0": "4"
  },
  "freecell/p01 s=3": {
@@ -308,13 +308,13 @@
  "freecell/p02 s=1": {
   "cost": "14",
   "exit": "0",
-  "expansions": "98836",
-  "h0": "2"
+  "expansions": "74979",
+  "h0": "3"
  },
  "freecell/p02 s=2": {
   "cost": "14",
   "exit": "0",
-  "expansions": "34801",
+  "expansions": "30247",
   "h0": "5"
  },
  "freecell/p02 s=3": {
@@ -344,7 +344,7 @@
  "gripper/prob01 s=2": {
   "cost": "11",
   "exit": "0",
-  "expansions": "222",
+  "expansions": "210",
   "h0": "4"
  },
  "gripper/prob01 s=3": {
@@ -488,7 +488,7 @@
  "miconic/s2-0 s=1": {
   "cost": "7",
   "exit": "0",
-  "expansions": "23",
+  "expansions": "20",
   "h0": "2"
  },
  "miconic/s2-0 s=2": {
@@ -518,7 +518,7 @@
  "miconic/s3-0 s=1": {
   "cost": "10",
   "exit": "0",
-  "expansions": "144",
+  "expansions": "120",
   "h0": "3"
  },
  "miconic/s3-0 s=2": {
@@ -548,8 +548,8 @@
  "mprime/prob01 s=1": {
   "cost": "5",
   "exit": "0",
-  "expansions": "5",
-  "h0": "4"
+  "expansions": "0",
+  "h0": "5"
  },
  "mprime/prob01 s=2": {
   "cost": "5",
@@ -578,7 +578,7 @@
  "psr-small/p01-s2-n1-l2-f50 s=1": {
   "cost": "8",
   "exit": "0",
-  "expansions": "9",
+  "expansions": "8",
   "h0": "1"
  },
  "psr-small/p01-s2-n1-l2-f50 s=2": {
@@ -608,13 +608,13 @@
  "psr-small/p02-s5-n1-l3-f30 s=1": {
   "cost": "11",
   "exit": "0",
-  "expansions": "62",
+  "expansions": "53",
   "h0": "1"
  },
  "psr-small/p02-s5-n1-l3-f30 s=2": {
   "cost": "11",
   "exit": "0",
-  "expansions": "53",
+  "expansions": "50",
   "h0": "1"
  },
  "psr-small/p02-s5-n1-l3-f30 s=3": {
@@ -788,13 +788,13 @@
  "storage/p01 s=1": {
   "cost": "3",
   "exit": "0",
-  "expansions": "2",
-  "h0": "1"
+  "expansions": "1",
+  "h0": "2"
  },
  "storage/p01 s=2": {
   "cost": "3",
   "exit": "0",
-  "expansions": "2",
+  "expansions": "1",
   "h0": "2"
  },
  "storage/p01 s=3": {
@@ -818,14 +818,14 @@
  "storage/p02 s=1": {
   "cost": "3",
   "exit": "0",
-  "expansions": "2",
+  "expansions": "1",
   "h0": "1"
  },
  "storage/p02 s=2": {
   "cost": "3",
   "exit": "0",
-  "expansions": "2",
-  "h0": "1"
+  "expansions": "1",
+  "h0": "2"
  },
  "storage/p02 s=3": {
   "cost": "3",
@@ -848,7 +848,7 @@
  "storage/p03 s=1": {
   "cost": "3",
   "exit": "0",
-  "expansions": "2",
+  "expansions": "1",
   "h0": "1"
  },
  "storage/p03 s=2": {
@@ -908,7 +908,7 @@
  "tpp/p02 s=1": {
   "cost": "8",
   "exit": "0",
-  "expansions": "24",
+  "expansions": "22",
   "h0": "1"
  },
  "tpp/p02 s=2": {
@@ -938,7 +938,7 @@
  "tpp/p03 s=1": {
   "cost": "11",
   "exit": "0",
-  "expansions": "108",
+  "expansions": "97",
   "h0": "2"
  },
  "tpp/p03 s=2": {
